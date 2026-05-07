@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($env:PATH += \";C:\\\\Program Files\\\\nodejs;C:\\\\Users\\\\Dell\\\\AppData\\\\Roaming\\\\npm\"; npx --version 2>&1)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
