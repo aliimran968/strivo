@@ -12,7 +12,8 @@ import Svg, { Line, Rect, Text as SvgText } from 'react-native-svg';
 
 import { StrivoColors } from '@/constants/theme';
 import { TAG_CONFIG } from '@/constants/tags';
-import { getGlobeItems, GlobeItem } from '@/services/storage';
+import { GlobeItem } from '@/services/storage';
+import { getSessionsMerged } from '@/services/sessions';
 
 // ─── Date helpers (local time) ────────────────────────────────────────────────
 
@@ -226,7 +227,7 @@ export default function TrendsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      getGlobeItems().then((items) => setStats(computeStats(items)));
+      getSessionsMerged().then((items) => setStats(computeStats(items)));
     }, []),
   );
 

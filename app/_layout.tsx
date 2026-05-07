@@ -9,6 +9,7 @@ import 'react-native-reanimated';
 import { StrivoColors } from '@/constants/theme';
 import { requestPermissions } from '@/services/notifications';
 import { supabase } from '@/lib/supabase';
+import { migrateLocalSessions } from '@/services/sessions';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -36,6 +37,7 @@ export default function RootLayout() {
       new Promise<void>((resolve) => setTimeout(resolve, 2000)),
     ]).then(([{ data: { session } }]) => {
       if (!session) router.replace('/onboarding');
+      else void migrateLocalSessions();
       SplashScreen.hideAsync();
     });
   }, []);

@@ -11,7 +11,8 @@ import Svg, { Circle, Ellipse, Path, G, Defs, ClipPath } from 'react-native-svg'
 
 import { StrivoColors } from '@/constants/theme';
 import { SubjectTag } from '@/constants/tags';
-import { getGlobeItems, getUserProfile, GlobeItem } from '@/services/storage';
+import { getUserProfile, GlobeItem } from '@/services/storage';
+import { getSessionsMerged } from '@/services/sessions';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -213,7 +214,7 @@ export default function GlobeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      Promise.all([getGlobeItems(), getUserProfile()]).then(([data, profile]) => {
+      Promise.all([getSessionsMerged(), getUserProfile()]).then(([data, profile]) => {
         const newItems = [...data].reverse().slice(0, MAX_VISIBLE);
 
         const isFirstLoad = !hasLoaded.current;

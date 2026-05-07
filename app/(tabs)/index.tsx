@@ -27,6 +27,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StrivoColors } from '@/constants/theme';
 import { SubjectTag, TAG_CONFIG, TAG_LIST, DEFAULT_TAG } from '@/constants/tags';
 import { saveGlobeItem, getGlobeItems, saveLastTag, getLastTag, getUserProfile, saveUserProfile, getReminderTime, saveReminderTime, clearUserSession, saveBackgroundSession, getBackgroundSession, clearBackgroundSession } from '@/services/storage';
+import { syncSessionToSupabase } from '@/services/sessions';
 import { notifySessionComplete, scheduleDailyReminder } from '@/services/notifications';
 import { supabase } from '@/lib/supabase';
 
@@ -257,12 +258,14 @@ export default function FocusScreen() {
     if (remaining <= 0) {
       sessionStateRef.current = 'completed';
       setSessionState('completed');
-      await saveGlobeItem({
+      const bgItem = {
         id: Date.now().toString(),
         tag: saved.selectedTag,
         durationSecs: saved.totalDuration,
         completedAt: new Date().toISOString(),
-      });
+      };
+      await saveGlobeItem(bgItem);
+      void syncSessionToSupabase(bgItem);
       void notifySessionComplete();
       const items = await getGlobeItems();
       setGlobeCount(items.length);
@@ -346,12 +349,14 @@ export default function FocusScreen() {
     sessionStateRef.current = 'completed';
     setSessionState('completed');
 
-    await saveGlobeItem({
+    const completedItem = {
       id: Date.now().toString(),
       tag: selectedTagRef.current,
       durationSecs: totalDurationRef.current,
       completedAt: new Date().toISOString(),
-    });
+    };
+    await saveGlobeItem(completedItem);
+    void syncSessionToSupabase(completedItem);
 
     void notifySessionComplete();
 

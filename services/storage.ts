@@ -19,7 +19,8 @@ const ONBOARDED_KEY          = '@strivo/onboarded';
 const USER_PROFILE_KEY       = '@strivo/user_profile';
 const REMINDER_TIME_KEY      = '@strivo/reminder_time';
 const CREDENTIALS_KEY        = '@strivo/credentials';
-const BACKGROUND_SESSION_KEY = '@strivo/background_session';
+const BACKGROUND_SESSION_KEY   = '@strivo/background_session';
+const SESSIONS_MIGRATED_KEY    = '@strivo/sessions_migrated';
 
 export type BackgroundSession = {
   timeRemaining: number;
@@ -51,6 +52,27 @@ export async function saveGlobeItem(item: GlobeItem): Promise<void> {
   } catch {
     // silently fail — don't crash the app if storage fails
   }
+}
+
+// Replaces the entire local array — used to write back merged remote+local data.
+export async function replaceGlobeItems(items: GlobeItem[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {}
+}
+
+export async function getSessionsMigrated(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(SESSIONS_MIGRATED_KEY)) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export async function setSessionsMigrated(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(SESSIONS_MIGRATED_KEY, 'true');
+  } catch {}
 }
 
 export async function clearGlobeItems(): Promise<void> {
