@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, Animated as RNAnimated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import Animated, {
@@ -201,6 +201,119 @@ function GlobeItemDot({ item, idx, totalItems, isNew, cx, cy, maxR }: ItemProps)
   );
 }
 
+// ─── Snow shimmer (RN Animated, native driver only) ──────────────────────────
+//
+// Native-driver-only snow drift overlay. Rendered OUTSIDE the SVG as
+// absolute-positioned Animated.View dots, clipped to the dome's interior
+// via a circular borderRadius + overflow:hidden wrapper.
+//
+// Do NOT replace this with react-native-svg's AnimatedCircle — that combo with
+// Reanimated crashed on iPhone XR. RN Animated + plain Views is the safe path.
+
+type SnowDotState = {
+  translateY: RNAnimated.Value;
+  translateX: RNAnimated.Value;
+  opacity:    RNAnimated.Value;
+  startX:     number;
+  yDrift:     number;
+  xDrift:     number;
+  duration:   number;
+  delay:      number;
+};
+
+function SnowShimmer({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  const dotsRef = useRef<SnowDotState[] | null>(null);
+  if (dotsRef.current === null) {
+    dotsRef.current = Array.from({ length: 6 }, () => ({
+      translateY: new RNAnimated.Value(0),
+      translateX: new RNAnimated.Value(0),
+      opacity:    new RNAnimated.Value(1),
+      // Spawn across the middle 60% of the dome width (avoids the dome edges
+      // where the circular clip cuts off most of the bounding box).
+      startX:   r * 0.4 + Math.random() * r * 1.2,
+      yDrift:   40 + Math.random() * 30,         // 40 – 70 px
+      xDrift:   (Math.random() - 0.5) * 20,      // -10 – +10 px
+      duration: 2500 + Math.random() * 1500,     // 2500 – 4000 ms
+      delay:    Math.random() * 1800,            // staggered start
+    }));
+  }
+  const dots = dotsRef.current;
+
+  useEffect(() => {
+    const animations = dots.map((d) => {
+      const loop = RNAnimated.loop(
+        RNAnimated.parallel([
+          RNAnimated.timing(d.translateY, {
+            toValue: d.yDrift,
+            duration: d.duration,
+            useNativeDriver: true,
+          }),
+          RNAnimated.timing(d.translateX, {
+            toValue: d.xDrift,
+            duration: d.duration,
+            useNativeDriver: true,
+          }),
+          RNAnimated.sequence([
+            RNAnimated.timing(d.opacity, {
+              toValue: 0.2,
+              duration: d.duration / 2,
+              useNativeDriver: true,
+            }),
+            RNAnimated.timing(d.opacity, {
+              toValue: 1,
+              duration: d.duration / 2,
+              useNativeDriver: true,
+            }),
+          ]),
+        ]),
+      );
+      const delayed = RNAnimated.sequence([RNAnimated.delay(d.delay), loop]);
+      delayed.start();
+      return delayed;
+    });
+
+    return () => {
+      animations.forEach((a) => a.stop());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: cx - r,
+        top: cy - r,
+        width: r * 2,
+        height: r * 2,
+        borderRadius: r,
+        overflow: 'hidden',
+      }}
+    >
+      {dots.map((d, i) => (
+        <RNAnimated.View
+          key={i}
+          style={{
+            position: 'absolute',
+            left: d.startX,
+            top: 0,
+            width: 4,
+            height: 4,
+            borderRadius: 2,
+            backgroundColor: 'rgba(255,255,255,0.55)',
+            opacity: d.opacity,
+            transform: [
+              { translateX: d.translateX },
+              { translateY: d.translateY },
+            ],
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function GlobeScreen() {
@@ -257,6 +370,7 @@ export default function GlobeScreen() {
       </View>
 
       <View style={styles.content}>
+       <View style={{ position: 'relative', width: SVG_W, height: SVG_H }}>
         <Svg width={SVG_W} height={SVG_H}>
 
           <Defs>
@@ -315,6 +429,10 @@ export default function GlobeScreen() {
           <Path d={`M ${CX - 45},${BASE_Y + 36} L ${CX + 45},${BASE_Y + 36}`}
             stroke="#3A2515" strokeWidth={0.7} strokeLinecap="round" />
         </Svg>
+
+         {/* Native-driver snow shimmer — overlay inside the dome interior */}
+         <SnowShimmer cx={CX} cy={CY} r={GLOBE_R - 6} />
+       </View>
 
         <Text style={styles.caption}>{caption}</Text>
 
