@@ -33,11 +33,14 @@ export default function RootLayout() {
   useEffect(() => {
     requestPermissions();
     Promise.all([
-      supabase.auth.getSession(),
+      supabase.auth.getSession().catch(() => ({ data: { session: null } })),
       new Promise<void>((resolve) => setTimeout(resolve, 2000)),
     ]).then(([{ data: { session } }]) => {
       if (!session) router.replace('/onboarding');
       else void migrateLocalSessions();
+      SplashScreen.hideAsync();
+    }).catch(() => {
+      router.replace('/onboarding');
       SplashScreen.hideAsync();
     });
   }, []);
