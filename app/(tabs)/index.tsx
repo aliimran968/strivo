@@ -3,6 +3,7 @@ import {
   Alert,
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
   AppState,
@@ -100,6 +101,10 @@ export default function FocusScreen() {
   const [reminderHour, setReminderHour] = useState(9);
   const [reminderMinute, setReminderMinute] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+
+  const nameInputRef = useRef<TextInput>(null);
 
   const insets = useSafeAreaInsets();
   const sidebarX = useSharedValue(SIDEBAR_W);
@@ -377,6 +382,7 @@ export default function FocusScreen() {
   }
 
   function closeSidebar() {
+    setEditingName(false);
     sidebarX.value = withTiming(SIDEBAR_W, { duration: 220 });
     backdropOpacity.value = withTiming(0, { duration: 220 });
     setTimeout(() => setSidebarOpen(false), 225);
@@ -399,6 +405,33 @@ export default function FocusScreen() {
         { text: 'Yes', style: 'destructive', onPress: doLogOut },
       ],
     );
+  }
+
+  function handleStartEditName() {
+    setNameInput(userName || '');
+    setEditingName(true);
+  }
+
+  function handleCancelNameEdit() {
+    setEditingName(false);
+  }
+
+  async function handleSaveNameEdit() {
+    const trimmed = nameInput.trim();
+    // Close edit mode immediately so onBlur-triggered cancel is a no-op
+    setEditingName(false);
+    if (!trimmed) return;
+    setUserName(trimmed);
+    // AsyncStorage — always updates
+    const existing = await getUserProfile();
+    await saveUserProfile({ name: trimmed, tags: existing?.tags ?? [] });
+    // Supabase — silent fail if offline
+    supabase.auth.getUser()
+      .then(({ data: { user } }) => {
+        if (!user) return;
+        void supabase.from('profiles').update({ name: trimmed }).eq('id', user.id);
+      })
+      .catch(() => {});
   }
 
   function handleBroken() {
@@ -672,7 +705,33 @@ export default function FocusScreen() {
           />
           <Animated.View style={[styles.sidebarPanel, sidebarAnimStyle]}>
             <View style={[styles.sidebarTop, { paddingTop: insets.top + 24 }]}>
-              <Text style={styles.sidebarName}>{userName || 'Hello'}</Text>
+              {editingName ? (
+                <View style={styles.nameEditRow}>
+                  <TextInput
+                    ref={nameInputRef}
+                    style={styles.nameInput}
+                    value={nameInput}
+                    onChangeText={setNameInput}
+                    autoFocus
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSaveNameEdit}
+                    onBlur={handleCancelNameEdit}
+                  />
+                  <TouchableOpacity
+                    style={styles.nameSaveBtn}
+                    onPress={handleSaveNameEdit}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.nameSaveBtnText}>Save</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={handleStartEditName} activeOpacity={0.7}>
+                  <Text style={styles.sidebarName}>{userName || 'Hello'}</Text>
+                </TouchableOpacity>
+              )}
               <View style={styles.sidebarTagRow}>
                 <Text style={styles.sidebarTagEmoji}>{(TAG_CONFIG[selectedTag] ?? TAG_CONFIG[DEFAULT_TAG]).emoji}</Text>
                 <Text style={styles.sidebarTagLabel}>{(TAG_CONFIG[selectedTag] ?? TAG_CONFIG[DEFAULT_TAG]).label}</Text>
@@ -1088,5 +1147,36 @@ const styles = StyleSheet.create({
     color: StrivoColors.textMuted,
     fontWeight: '500',
     letterSpacing: 0.2,
+  },
+
+  // ── Name edit ───────────────────────────────────────────────────────────────
+  nameEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  nameInput: {
+    flex: 1,
+    fontSize: 22,
+    fontWeight: '600',
+    color: StrivoColors.text,
+    fontFamily: 'serif',
+    letterSpacing: 0.3,
+    borderBottomWidth: 1.5,
+    borderBottomColor: StrivoColors.accent,
+    paddingVertical: 4,
+    paddingHorizontal: 0,
+  },
+  nameSaveBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: StrivoColors.accent,
+  },
+  nameSaveBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: StrivoColors.bg,
+    letterSpacing: 0.3,
   },
 });
