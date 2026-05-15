@@ -238,6 +238,22 @@ function StatCard({
   );
 }
 
+// ─── Calendar format helpers ─────────────────────────────────────────────────
+
+function fmtDayHeader(dateKey: string): string {
+  const [, m, d] = dateKey.split('-').map(Number);
+  return `${d} ${SHORT_MONTHS[m - 1]}`;
+}
+
+function fmtTimeOfDay(iso: string): string {
+  const d = new Date(iso);
+  const h = d.getHours();
+  const min = d.getMinutes();
+  const ampm = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(min).padStart(2, '0')} ${ampm}`;
+}
+
 // ─── Focus Calendar Modal ────────────────────────────────────────────────────
 
 const MIN_CAL = { year: 2026, month: 3 }; // April 2026 (month 0-indexed)
@@ -265,14 +281,21 @@ function FocusCalendarModal({
     year: now.getFullYear(),
     month: now.getMonth(),
   });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  // Reset to current month each time the modal opens
+  // Reset to current month + clear selection each time the modal opens
   useEffect(() => {
     if (visible) {
       const n = new Date();
       setCalMonth({ year: n.getFullYear(), month: n.getMonth() });
+      setSelectedDate(null);
     }
   }, [visible]);
+
+  // Clear selection when the user navigates to a different month
+  useEffect(() => {
+    setSelectedDate(null);
+  }, [calMonth.year, calMonth.month]);
 
   const maxCal: CalMonth = { year: now.getFullYear(), month: now.getMonth() };
   const canGoBack =
@@ -307,6 +330,20 @@ function FocusCalendarModal({
     return set;
   }, [sessions]);
 
+  // Group sessions by date key, sorted oldest→newest within each day
+  const daySessionsMap = useMemo(() => {
+    const map = new Map<string, GlobeItem[]>();
+    for (const s of sessions) {
+      const key = localDateKey(new Date(s.completedAt));
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    }
+    for (const bucket of map.values()) {
+      bucket.sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
+    }
+    return map;
+  }, [sessions]);
+
   const todayStr = localDateKey(new Date());
   const { year, month } = calMonth;
   const firstDow = new Date(year, month, 1).getDay(); // 0 = Sun
@@ -322,11 +359,16 @@ function FocusCalendarModal({
     return {
       day,
       inMonth,
+      dateKey,
       hasSession: dateKey ? activeDays.has(dateKey) : false,
       isToday: dateKey === todayStr,
       isFuture: dateKey ? dateKey > todayStr : false,
     };
   });
+
+  const daySessions: GlobeItem[] = selectedDate
+    ? (daySessionsMap.get(selectedDate) ?? [])
+    : [];
 
   return (
     <Modal
@@ -337,7 +379,7 @@ function FocusCalendarModal({
     >
       <View style={[calStyles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
 
-        {/* Header */}
+        {/* Pinned header */}
         <View style={calStyles.header}>
           <Text style={calStyles.headerTitle}>Focus calendar</Text>
           <Pressable style={calStyles.closeBtn} onPress={onClose} hitSlop={12}>
@@ -345,68 +387,137 @@ function FocusCalendarModal({
           </Pressable>
         </View>
 
-        {/* Month navigation */}
-        <View style={calStyles.monthNav}>
-          <Pressable
-            onPress={goBack}
-            hitSlop={16}
-            style={[calStyles.navBtn, !canGoBack && calStyles.navBtnDisabled]}
-          >
-            <Text style={[calStyles.navBtnText, !canGoBack && calStyles.navBtnTextDisabled]}>
-              ‹
-            </Text>
-          </Pressable>
-          <Text style={calStyles.monthLabel}>
-            {LONG_MONTHS[month]} {year}
-          </Text>
-          <Pressable
-            onPress={goForward}
-            hitSlop={16}
-            style={[calStyles.navBtn, !canGoForward && calStyles.navBtnDisabled]}
-          >
-            <Text style={[calStyles.navBtnText, !canGoForward && calStyles.navBtnTextDisabled]}>
-              ›
-            </Text>
-          </Pressable>
-        </View>
+        {/* Scrollable body — calendar + optional session list */}
+        <ScrollView showsVerticalScrollIndicator={false}>
 
-        {/* Day-of-week headers */}
-        <View style={calStyles.dayHeaders}>
-          {CAL_DAY_HEADERS.map((d, i) => (
-            <View key={i} style={calStyles.dayHeaderCell}>
-              <Text style={calStyles.dayHeaderText}>{d}</Text>
-            </View>
-          ))}
-        </View>
+          {/* Month navigation */}
+          <View style={calStyles.monthNav}>
+            <Pressable
+              onPress={goBack}
+              hitSlop={16}
+              style={[calStyles.navBtn, !canGoBack && calStyles.navBtnDisabled]}
+            >
+              <Text style={[calStyles.navBtnText, !canGoBack && calStyles.navBtnTextDisabled]}>
+                ‹
+              </Text>
+            </Pressable>
+            <Text style={calStyles.monthLabel}>
+              {LONG_MONTHS[month]} {year}
+            </Text>
+            <Pressable
+              onPress={goForward}
+              hitSlop={16}
+              style={[calStyles.navBtn, !canGoForward && calStyles.navBtnDisabled]}
+            >
+              <Text style={[calStyles.navBtnText, !canGoForward && calStyles.navBtnTextDisabled]}>
+                ›
+              </Text>
+            </Pressable>
+          </View>
 
-        {/* Calendar grid */}
-        <View style={calStyles.grid}>
-          {cells.map((cell, i) => (
-            <View key={i} style={calStyles.cell}>
-              {cell.inMonth ? (
-                <>
-                  <Text
+          {/* Day-of-week headers */}
+          <View style={calStyles.dayHeaders}>
+            {CAL_DAY_HEADERS.map((d, i) => (
+              <View key={i} style={calStyles.dayHeaderCell}>
+                <Text style={calStyles.dayHeaderText}>{d}</Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Calendar grid */}
+          <View style={calStyles.grid}>
+            {cells.map((cell, i) => (
+              <View key={i} style={calStyles.cell}>
+                {cell.inMonth ? (
+                  cell.hasSession && !cell.isFuture ? (
+                    // Tappable — has sessions, not in the future
+                    <Pressable
+                      onPress={() =>
+                        setSelectedDate((prev) =>
+                          prev === cell.dateKey ? null : cell.dateKey,
+                        )
+                      }
+                      style={calStyles.cellPressable}
+                    >
+                      <View
+                        style={[
+                          calStyles.cellNumWrap,
+                          selectedDate === cell.dateKey && calStyles.cellNumWrapSelected,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            calStyles.cellNum,
+                            cell.isToday && calStyles.cellNumToday,
+                            selectedDate === cell.dateKey && calStyles.cellNumSelected,
+                          ]}
+                        >
+                          {cell.day}
+                        </Text>
+                      </View>
+                      <View style={[calStyles.dot, calStyles.dotActive]} />
+                    </Pressable>
+                  ) : (
+                    // Non-tappable — no sessions or future date
+                    <>
+                      <View style={calStyles.cellNumWrap}>
+                        <Text
+                          style={[
+                            calStyles.cellNum,
+                            cell.isToday  && calStyles.cellNumToday,
+                            cell.isFuture && calStyles.cellNumFuture,
+                          ]}
+                        >
+                          {cell.day}
+                        </Text>
+                      </View>
+                      <View style={[calStyles.dot, calStyles.dotHidden]} />
+                    </>
+                  )
+                ) : null}
+              </View>
+            ))}
+          </View>
+
+          {/* Day session list — shown when a date is selected */}
+          {selectedDate !== null && (
+            <>
+              <View style={calStyles.sessionDivider} />
+              <View style={calStyles.sessionListHead}>
+                <Text style={calStyles.sessionListDate}>
+                  {fmtDayHeader(selectedDate)}
+                </Text>
+              </View>
+              {daySessions.length === 0 ? (
+                <Text style={calStyles.calEmptyText}>No sessions on this day.</Text>
+              ) : (
+                daySessions.map((s, idx) => (
+                  <View
+                    key={s.id}
                     style={[
-                      calStyles.cellNum,
-                      cell.isToday   && calStyles.cellNumToday,
-                      cell.isFuture  && calStyles.cellNumFuture,
+                      calStyles.calRow,
+                      idx < daySessions.length - 1 && calStyles.calRowBorder,
                     ]}
                   >
-                    {cell.day}
-                  </Text>
-                  <View
-                    style={[
-                      calStyles.dot,
-                      cell.hasSession && !cell.isFuture
-                        ? calStyles.dotActive
-                        : calStyles.dotHidden,
-                    ]}
-                  />
-                </>
-              ) : null}
-            </View>
-          ))}
-        </View>
+                    <View style={calStyles.calRowLeft}>
+                      <Text style={calStyles.calRowEmoji}>
+                        {TAG_CONFIG[s.tag as SubjectTag]?.emoji ?? '🕯️'}
+                      </Text>
+                      <Text style={calStyles.calRowTag}>{s.tag}</Text>
+                    </View>
+                    <Text style={calStyles.calRowTime}>
+                      {fmtTimeOfDay(s.completedAt)}
+                    </Text>
+                    <Text style={calStyles.calRowDuration}>
+                      {fmtDuration(s.durationSecs)}
+                    </Text>
+                  </View>
+                ))
+              )}
+            </>
+          )}
+
+        </ScrollView>
 
       </View>
     </Modal>
@@ -801,7 +912,21 @@ const calStyles = StyleSheet.create({
     height: 54,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cellPressable: {
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 4,
+  },
+  cellNumWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cellNumWrapSelected: {
+    backgroundColor: '#C9933A',
   },
   cellNum: {
     fontSize: 15,
@@ -816,6 +941,10 @@ const calStyles = StyleSheet.create({
     color: '#9A8A72',
     opacity: 0.45,
   },
+  cellNumSelected: {
+    color: '#1A1208',
+    fontWeight: '700',
+  },
   dot: {
     width: 5,
     height: 5,
@@ -826,5 +955,69 @@ const calStyles = StyleSheet.create({
   },
   dotHidden: {
     backgroundColor: 'transparent',
+  },
+  sessionDivider: {
+    height: 1,
+    backgroundColor: '#3D2E1A',
+    marginTop: 8,
+  },
+  sessionListHead: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 10,
+  },
+  sessionListDate: {
+    fontSize: 13,
+    color: '#8A6020',
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  calEmptyText: {
+    fontSize: 13,
+    color: '#9A8A72',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  calRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    gap: 0,
+  },
+  calRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a1e0e',
+  },
+  calRowLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  calRowEmoji: {
+    fontSize: 18,
+    width: 26,
+    textAlign: 'center',
+  },
+  calRowTag: {
+    fontSize: 14,
+    color: '#F0E6D3',
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  calRowTime: {
+    fontSize: 13,
+    color: '#9A8A72',
+    letterSpacing: 0.2,
+    marginRight: 16,
+  },
+  calRowDuration: {
+    fontSize: 14,
+    color: '#C9933A',
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
 });
