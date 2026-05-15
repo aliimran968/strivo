@@ -24,10 +24,43 @@ export default function LoginScreen() {
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
 
+  const [view, setView]                 = useState<'login' | 'forgot'>('login');
+  const [resetEmail, setResetEmail]     = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetError, setResetError]     = useState('');
+  const [resetSent, setResetSent]       = useState(false);
+
   const passwordRef = useRef<TextInput>(null);
 
   function clearError() {
     if (error) setError('');
+  }
+
+  function goToForgot() {
+    setView('forgot');
+    setResetEmail(email); // pre-fill with whatever is already in the sign-in field
+    setResetError('');
+    setResetSent(false);
+  }
+
+  function goToLogin() {
+    setView('login');
+    setResetError('');
+    setResetSent(false);
+  }
+
+  async function handleResetPassword() {
+    const e = resetEmail.trim().toLowerCase();
+    if (!e) { setResetError('Please enter your email.'); return; }
+    setResetLoading(true);
+    setResetError('');
+    const { error: resetErr } = await supabase.auth.resetPasswordForEmail(e);
+    setResetLoading(false);
+    if (resetErr) {
+      setResetError(resetErr.message ?? 'Something went wrong. Please try again.');
+      return;
+    }
+    setResetSent(true);
   }
 
   async function handleSignIn() {
@@ -76,46 +109,94 @@ export default function LoginScreen() {
       >
         <View style={styles.inner}>
           <SvgXml xml={LAPTOP_SVG} width={260} height={188} style={{ alignSelf: 'center', marginBottom: 8 }} />
-          <Text style={styles.heading}>Sign in</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={StrivoColors.accentDim}
-            value={email}
-            onChangeText={(t) => { setEmail(t); clearError(); }}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
-          />
+          {view === 'login' ? (
+            <>
+              <Text style={styles.heading}>Sign in</Text>
 
-          <TextInput
-            ref={passwordRef}
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={StrivoColors.accentDim}
-            value={password}
-            onChangeText={(t) => { setPassword(t); clearError(); }}
-            secureTextEntry
-            returnKeyType="done"
-            onSubmitEditing={handleSignIn}
-          />
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor={StrivoColors.accentDim}
+                value={email}
+                onChangeText={(t) => { setEmail(t); clearError(); }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                returnKeyType="next"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+              />
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
+              <TextInput
+                ref={passwordRef}
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor={StrivoColors.accentDim}
+                value={password}
+                onChangeText={(t) => { setPassword(t); clearError(); }}
+                secureTextEntry
+                returnKeyType="done"
+                onSubmitEditing={handleSignIn}
+              />
+
+              <TouchableOpacity onPress={goToForgot} style={styles.forgotLink} activeOpacity={0.7}>
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </TouchableOpacity>
+
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+            </>
+          ) : (
+            <>
+              <Text style={styles.heading}>Reset password</Text>
+
+              {resetSent ? (
+                <Text style={styles.resetSentText}>Check your email for a reset link.</Text>
+              ) : (
+                <>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Email"
+                    placeholderTextColor={StrivoColors.accentDim}
+                    value={resetEmail}
+                    onChangeText={(t) => { setResetEmail(t); if (resetError) setResetError(''); }}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    returnKeyType="done"
+                    onSubmitEditing={handleResetPassword}
+                  />
+                  {resetError ? <Text style={styles.error}>{resetError}</Text> : null}
+                </>
+              )}
+
+              <TouchableOpacity onPress={goToLogin} activeOpacity={0.7}>
+                <Text style={styles.backToSignIn}>← Back to sign in</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </KeyboardAvoidingView>
 
       <View style={styles.ctaArea}>
-        <TouchableOpacity
-          style={[styles.btn, loading && styles.btnDisabled]}
-          onPress={handleSignIn}
-          activeOpacity={0.85}
-          disabled={loading}
-        >
-          <Text style={styles.btnText}>{loading ? 'Signing in…' : 'Sign In'}</Text>
-        </TouchableOpacity>
+        {view === 'login' ? (
+          <TouchableOpacity
+            style={[styles.btn, loading && styles.btnDisabled]}
+            onPress={handleSignIn}
+            activeOpacity={0.85}
+            disabled={loading}
+          >
+            <Text style={styles.btnText}>{loading ? 'Signing in…' : 'Sign In'}</Text>
+          </TouchableOpacity>
+        ) : !resetSent ? (
+          <TouchableOpacity
+            style={[styles.btn, resetLoading && styles.btnDisabled]}
+            onPress={handleResetPassword}
+            activeOpacity={0.85}
+            disabled={resetLoading}
+          >
+            <Text style={styles.btnText}>{resetLoading ? 'Sending…' : 'Send reset link'}</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </SafeAreaView>
   );
@@ -183,5 +264,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: StrivoColors.bg,
     letterSpacing: 0.4,
+  },
+  forgotLink: {
+    alignSelf: 'flex-end',
+    marginTop: -8,
+  },
+  forgotText: {
+    fontSize: 13,
+    color: '#88786a',
+    letterSpacing: 0.2,
+  },
+  resetSentText: {
+    fontSize: 15,
+    color: '#88786a',
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  backToSignIn: {
+    fontSize: 14,
+    color: StrivoColors.accent,
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
 });
