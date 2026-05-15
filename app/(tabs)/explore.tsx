@@ -636,9 +636,9 @@ export default function GlobeScreen() {
 
         {!hasItems && (
           <View style={styles.emptyHint}>
-            <Text style={styles.emptyTitle}>Your globe is empty</Text>
+            <Text style={styles.emptyTitle}>Your globe awaits</Text>
             <Text style={styles.emptyBody}>
-              Complete a focus session on the Focus tab{'\n'}to start filling your globe.
+              Complete your first focus session on the Focus tab{'\n'}and watch it come to life.
             </Text>
           </View>
         )}

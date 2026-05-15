@@ -711,8 +711,8 @@ export default function TrendsScreen() {
           {filteredSessions.length === 0 ? (
             <Text style={styles.emptyText}>
               {sessions.length === 0
-                ? 'No sessions yet. Complete your first focus session to see your history.'
-                : `No ${selectedTag} sessions yet.`}
+                ? 'Nothing here yet — finish your first focus session and it will appear right here.'
+                : `No ${selectedTag} sessions logged yet — keep going!`}
             </Text>
           ) : (
             filteredSessions.map((session, idx) => (
