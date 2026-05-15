@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from 'expo-router';
 import Svg, { Line, Rect, Text as SvgText } from 'react-native-svg';
 
@@ -259,6 +259,7 @@ function FocusCalendarModal({
   onClose: () => void;
   sessions: GlobeItem[];
 }) {
+  const insets = useSafeAreaInsets();
   const now = new Date();
   const [calMonth, setCalMonth] = useState<CalMonth>({
     year: now.getFullYear(),
@@ -334,7 +335,7 @@ function FocusCalendarModal({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <SafeAreaView style={calStyles.root}>
+      <View style={[calStyles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
 
         {/* Header */}
         <View style={calStyles.header}>
@@ -407,7 +408,7 @@ function FocusCalendarModal({
           ))}
         </View>
 
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
