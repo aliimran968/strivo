@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,9 +12,13 @@ import { useFocusEffect } from 'expo-router';
 import Svg, { Line, Rect, Text as SvgText } from 'react-native-svg';
 
 import { StrivoColors } from '@/constants/theme';
-import { TAG_CONFIG } from '@/constants/tags';
+import { SubjectTag, TAG_CONFIG, TAG_LIST } from '@/constants/tags';
 import { GlobeItem } from '@/services/storage';
 import { getSessionsMerged } from '@/services/sessions';
+
+// ─── Tag filter list ──────────────────────────────────────────────────────────
+
+const FILTER_TAGS: Array<'All' | SubjectTag> = ['All', ...TAG_LIST];
 
 // ─── Date helpers (local time) ────────────────────────────────────────────────
 
@@ -107,6 +112,18 @@ function fmtDuration(secs: number): string {
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
+}
+
+const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function fmtSessionDate(iso: string): string {
+  const d = new Date(iso);
+  const todayStr = localDateKey(new Date());
+  const yesterdayStr = shiftKey(todayStr, -1);
+  const dStr = localDateKey(d);
+  if (dStr === todayStr) return 'Today';
+  if (dStr === yesterdayStr) return 'Yesterday';
+  return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${SHORT_MONTHS[d.getMonth()]}`;
 }
 
 function niceMax(val: number): number {
@@ -223,11 +240,16 @@ function StatCard({
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TrendsScreen() {
-  const [stats, setStats] = useState<Stats>(() => computeStats([]));
+  const [stats, setStats]           = useState<Stats>(() => computeStats([]));
+  const [sessions, setSessions]     = useState<GlobeItem[]>([]);
+  const [selectedTag, setSelectedTag] = useState<'All' | SubjectTag>('All');
 
   useFocusEffect(
     useCallback(() => {
-      getSessionsMerged().then((items) => setStats(computeStats(items)));
+      getSessionsMerged().then((items) => {
+        setStats(computeStats(items));
+        setSessions([...items].reverse()); // newest first
+      });
     }, []),
   );
 
@@ -235,6 +257,10 @@ export default function TrendsScreen() {
   const tagDisplay = mostUsedTag
     ? `${TAG_CONFIG[mostUsedTag as keyof typeof TAG_CONFIG]?.emoji ?? ''} ${mostUsedTag}`
     : '—';
+
+  const filteredSessions = selectedTag === 'All'
+    ? sessions
+    : sessions.filter((s) => s.tag === selectedTag);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -261,6 +287,63 @@ export default function TrendsScreen() {
           <Text style={styles.chartTitle}>Last 7 days</Text>
           <Text style={styles.chartSub}>minutes per day</Text>
           <BarChart data={last7} />
+        </View>
+
+        {/* ── History ─────────────────────────────────────────────────────── */}
+        <View style={styles.historyCard}>
+          <Text style={styles.historyTitle}>History</Text>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pillsRow}
+            style={styles.pillsScroll}
+          >
+            {FILTER_TAGS.map((tag) => {
+              const active = selectedTag === tag;
+              const label = tag === 'All'
+                ? 'All'
+                : `${TAG_CONFIG[tag].emoji} ${tag}`;
+              return (
+                <Pressable
+                  key={tag}
+                  style={[styles.pill, active && styles.pillActive]}
+                  onPress={() => setSelectedTag(tag)}
+                >
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+
+          {filteredSessions.length === 0 ? (
+            <Text style={styles.emptyText}>
+              {sessions.length === 0
+                ? 'No sessions yet. Complete your first focus session to see your history.'
+                : `No ${selectedTag} sessions yet.`}
+            </Text>
+          ) : (
+            filteredSessions.map((session, idx) => (
+              <View
+                key={session.id}
+                style={[
+                  styles.sessionRow,
+                  idx < filteredSessions.length - 1 && styles.sessionRowBorder,
+                ]}
+              >
+                <Text style={styles.sessionEmoji}>
+                  {TAG_CONFIG[session.tag as SubjectTag]?.emoji ?? '🕯️'}
+                </Text>
+                <View style={styles.sessionMeta}>
+                  <Text style={styles.sessionTag}>{session.tag}</Text>
+                  <Text style={styles.sessionDate}>{fmtSessionDate(session.completedAt)}</Text>
+                </View>
+                <Text style={styles.sessionDuration}>{fmtDuration(session.durationSecs)}</Text>
+              </View>
+            ))
+          )}
         </View>
 
       </ScrollView>
@@ -350,5 +433,94 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase',
     marginBottom: 14,
+  },
+  historyCard: {
+    backgroundColor: StrivoColors.bgCard,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: StrivoColors.border,
+    paddingTop: 18,
+    paddingBottom: 4,
+    overflow: 'hidden',
+  },
+  historyTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: StrivoColors.text,
+    letterSpacing: 0.4,
+    marginBottom: 12,
+    paddingHorizontal: 18,
+  },
+  pillsScroll: {
+    marginBottom: 14,
+  },
+  pillsRow: {
+    paddingHorizontal: 18,
+    gap: 8,
+    flexDirection: 'row',
+  },
+  pill: {
+    borderWidth: 1,
+    borderColor: StrivoColors.accent,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  pillActive: {
+    backgroundColor: StrivoColors.accent,
+  },
+  pillText: {
+    fontSize: 13,
+    color: StrivoColors.accent,
+    letterSpacing: 0.2,
+  },
+  pillTextActive: {
+    color: '#1A1208',
+    fontWeight: '600',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: StrivoColors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    lineHeight: 20,
+  },
+  sessionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    gap: 12,
+  },
+  sessionRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a1e0e',
+  },
+  sessionEmoji: {
+    fontSize: 20,
+    width: 28,
+    textAlign: 'center',
+  },
+  sessionMeta: {
+    flex: 1,
+    gap: 2,
+  },
+  sessionTag: {
+    fontSize: 14,
+    color: StrivoColors.text,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  sessionDate: {
+    fontSize: 11,
+    color: StrivoColors.textMuted,
+    letterSpacing: 0.2,
+  },
+  sessionDuration: {
+    fontSize: 14,
+    color: StrivoColors.accent,
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
 });
