@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Animated as RNAnimated,
   Modal,
   Pressable,
   ScrollView,
@@ -256,7 +257,23 @@ function fmtTimeOfDay(iso: string): string {
 
 // ─── Focus Calendar Modal ────────────────────────────────────────────────────
 
-const MIN_CAL = { year: 2026, month: 3 }; // April 2026 (month 0-indexed)
+const MIN_CAL        = { year: 2026, month: 3 }; // April 2026 (month 0-indexed)
+const CAL_SHEET_H    = 420;
+
+function fmtDurationSheet(secs: number): string {
+  const totalMins = Math.max(0, Math.round(secs / 60));
+  if (totalMins < 60) return `${totalMins} min`;
+  const hrs  = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  if (mins === 0) return `${hrs} hr`;
+  return `${hrs} hr ${mins} min`;
+}
+
+function fmtSheetDate(iso: string): string {
+  const d   = new Date(iso);
+  const key = localDateKey(d);
+  return `${fmtDayHeader(key)} ${d.getFullYear()} · ${fmtTimeOfDay(iso)}`;
+}
 
 const LONG_MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -281,16 +298,41 @@ function FocusCalendarModal({
     year: now.getFullYear(),
     month: now.getMonth(),
   });
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate,   setSelectedDate]   = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<GlobeItem | null>(null);
 
-  // Reset to current month + clear selection each time the modal opens
+  // Sheet animation values — same pattern as the globe session sheet in explore.tsx
+  const sheetY               = useRef(new RNAnimated.Value(CAL_SHEET_H)).current;
+  const sheetBackdropOpacity = useRef(new RNAnimated.Value(0)).current;
+
+  function openSheet(session: GlobeItem) {
+    setSelectedSession(session);
+    sheetY.setValue(CAL_SHEET_H);
+    sheetBackdropOpacity.setValue(0);
+    RNAnimated.parallel([
+      RNAnimated.timing(sheetY,               { toValue: 0, duration: 320, useNativeDriver: true }),
+      RNAnimated.timing(sheetBackdropOpacity, { toValue: 1, duration: 320, useNativeDriver: true }),
+    ]).start();
+  }
+
+  function closeSheet() {
+    RNAnimated.parallel([
+      RNAnimated.timing(sheetY,               { toValue: CAL_SHEET_H, duration: 240, useNativeDriver: true }),
+      RNAnimated.timing(sheetBackdropOpacity, { toValue: 0,           duration: 240, useNativeDriver: true }),
+    ]).start(() => setSelectedSession(null));
+  }
+
+  // Reset to current month + clear all selections each time the modal opens
   useEffect(() => {
     if (visible) {
       const n = new Date();
       setCalMonth({ year: n.getFullYear(), month: n.getMonth() });
       setSelectedDate(null);
+      setSelectedSession(null);
+      sheetY.setValue(CAL_SHEET_H);
+      sheetBackdropOpacity.setValue(0);
     }
-  }, [visible]);
+  }, [visible]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear selection when the user navigates to a different month
   useEffect(() => {
@@ -492,8 +534,9 @@ function FocusCalendarModal({
                 <Text style={calStyles.calEmptyText}>No sessions on this day.</Text>
               ) : (
                 daySessions.map((s, idx) => (
-                  <View
+                  <Pressable
                     key={s.id}
+                    onPress={() => openSheet(s)}
                     style={[
                       calStyles.calRow,
                       idx < daySessions.length - 1 && calStyles.calRowBorder,
@@ -511,13 +554,64 @@ function FocusCalendarModal({
                     <Text style={calStyles.calRowDuration}>
                       {fmtDuration(s.durationSecs)}
                     </Text>
-                  </View>
+                  </Pressable>
                 ))
               )}
             </>
           )}
 
         </ScrollView>
+
+        {/* ── Session detail sheet — floats above the calendar ──────────── */}
+        {selectedSession && (
+          <>
+            {/* Darkening backdrop — visual only, no touch interception */}
+            <RNAnimated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFillObject,
+                calStyles.sheetBackdrop,
+                { opacity: sheetBackdropOpacity },
+              ]}
+            />
+            {/* Tap-outside-to-dismiss layer */}
+            <Pressable
+              style={StyleSheet.absoluteFillObject}
+              onPress={closeSheet}
+            />
+            {/* The sheet itself */}
+            <RNAnimated.View
+              style={[calStyles.sheet, { transform: [{ translateY: sheetY }] }]}
+            >
+              <View style={calStyles.sheetHandle} />
+              <ScrollView
+                contentContainerStyle={calStyles.sheetScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                <Text style={calStyles.sheetEmoji}>
+                  {(TAG_CONFIG[selectedSession.tag as SubjectTag] ?? TAG_CONFIG.Other).emoji}
+                </Text>
+                <Text style={calStyles.sheetTagName}>
+                  {(TAG_CONFIG[selectedSession.tag as SubjectTag] ?? TAG_CONFIG.Other).label}
+                </Text>
+
+                <View style={calStyles.sheetDivider} />
+
+                <Text style={calStyles.sheetLabel}>Duration</Text>
+                <Text style={calStyles.sheetValue}>
+                  {fmtDurationSheet(selectedSession.durationSecs)}
+                </Text>
+
+                <View style={{ height: 18 }} />
+
+                <Text style={calStyles.sheetLabel}>Completed</Text>
+                <Text style={calStyles.sheetValue}>
+                  {fmtSheetDate(selectedSession.completedAt)}
+                </Text>
+              </ScrollView>
+            </RNAnimated.View>
+          </>
+        )}
 
       </View>
     </Modal>
@@ -1019,5 +1113,78 @@ const calStyles = StyleSheet.create({
     color: '#C9933A',
     fontWeight: '500',
     letterSpacing: 0.3,
+  },
+
+  // ── Session detail sheet (matches globe sheet in explore.tsx) ─────────────
+  sheetBackdrop: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: CAL_SHEET_H,
+    backgroundColor: '#1A1208',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 10,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
+    elevation: 18,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 44,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#C9933A',
+    marginBottom: 18,
+  },
+  sheetScrollContent: {
+    alignItems: 'center',
+    paddingBottom: 12,
+  },
+  sheetEmoji: {
+    fontSize: 48,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  sheetTagName: {
+    color: '#C9933A',
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textAlign: 'center',
+    marginTop: 8,
+    fontFamily: 'serif',
+  },
+  sheetDivider: {
+    width: '70%',
+    height: 1,
+    backgroundColor: '#C9933A',
+    opacity: 0.3,
+    marginTop: 18,
+    marginBottom: 22,
+  },
+  sheetLabel: {
+    color: '#F0E6D3',
+    opacity: 0.5,
+    fontSize: 13,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    alignSelf: 'flex-start',
+  },
+  sheetValue: {
+    color: '#F0E6D3',
+    fontSize: 17,
+    fontWeight: '500',
+    marginTop: 4,
+    letterSpacing: 0.3,
+    alignSelf: 'flex-start',
   },
 });
