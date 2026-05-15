@@ -25,8 +25,8 @@ export async function notifySessionComplete(): Promise<void> {
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Session complete 🎉',
-        body: 'Your item has been added to your globe.',
+        title: 'Session complete ✦',
+        body: 'Your globe just grew a little brighter.',
       },
       trigger: null,
     });
@@ -45,8 +45,10 @@ export async function scheduleDailyReminder(
     await Notifications.scheduleNotificationAsync({
       identifier: DAILY_ID,
       content: {
-        title: 'Time to focus.',
-        body: `Time to focus, ${name || 'friend'}. Your globe is waiting.`,
+        title: 'Time to focus',
+        body: name
+          ? `${name}, your globe is here whenever you're ready.`
+          : "Your globe is here whenever you're ready.",
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DAILY,
