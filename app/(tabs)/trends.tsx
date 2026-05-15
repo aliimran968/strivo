@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -237,12 +238,187 @@ function StatCard({
   );
 }
 
+// ─── Focus Calendar Modal ────────────────────────────────────────────────────
+
+const MIN_CAL = { year: 2026, month: 3 }; // April 2026 (month 0-indexed)
+
+const LONG_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const CAL_DAY_HEADERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+type CalMonth = { year: number; month: number };
+
+function FocusCalendarModal({
+  visible,
+  onClose,
+  sessions,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  sessions: GlobeItem[];
+}) {
+  const now = new Date();
+  const [calMonth, setCalMonth] = useState<CalMonth>({
+    year: now.getFullYear(),
+    month: now.getMonth(),
+  });
+
+  // Reset to current month each time the modal opens
+  useEffect(() => {
+    if (visible) {
+      const n = new Date();
+      setCalMonth({ year: n.getFullYear(), month: n.getMonth() });
+    }
+  }, [visible]);
+
+  const maxCal: CalMonth = { year: now.getFullYear(), month: now.getMonth() };
+  const canGoBack =
+    calMonth.year > MIN_CAL.year ||
+    (calMonth.year === MIN_CAL.year && calMonth.month > MIN_CAL.month);
+  const canGoForward =
+    calMonth.year < maxCal.year ||
+    (calMonth.year === maxCal.year && calMonth.month < maxCal.month);
+
+  function goBack() {
+    if (!canGoBack) return;
+    setCalMonth((prev) =>
+      prev.month === 0
+        ? { year: prev.year - 1, month: 11 }
+        : { year: prev.year, month: prev.month - 1 },
+    );
+  }
+
+  function goForward() {
+    if (!canGoForward) return;
+    setCalMonth((prev) =>
+      prev.month === 11
+        ? { year: prev.year + 1, month: 0 }
+        : { year: prev.year, month: prev.month + 1 },
+    );
+  }
+
+  // Build set of date keys that have at least one session
+  const activeDays = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of sessions) set.add(localDateKey(new Date(s.completedAt)));
+    return set;
+  }, [sessions]);
+
+  const todayStr = localDateKey(new Date());
+  const { year, month } = calMonth;
+  const firstDow = new Date(year, month, 1).getDay(); // 0 = Sun
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const totalCells = Math.ceil((firstDow + daysInMonth) / 7) * 7;
+
+  const cells = Array.from({ length: totalCells }, (_, i) => {
+    const day = i - firstDow + 1;
+    const inMonth = day >= 1 && day <= daysInMonth;
+    const dateKey = inMonth
+      ? `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+      : null;
+    return {
+      day,
+      inMonth,
+      hasSession: dateKey ? activeDays.has(dateKey) : false,
+      isToday: dateKey === todayStr,
+      isFuture: dateKey ? dateKey > todayStr : false,
+    };
+  });
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <SafeAreaView style={calStyles.root}>
+
+        {/* Header */}
+        <View style={calStyles.header}>
+          <Text style={calStyles.headerTitle}>Focus calendar</Text>
+          <Pressable style={calStyles.closeBtn} onPress={onClose} hitSlop={12}>
+            <Text style={calStyles.closeBtnText}>✕</Text>
+          </Pressable>
+        </View>
+
+        {/* Month navigation */}
+        <View style={calStyles.monthNav}>
+          <Pressable
+            onPress={goBack}
+            hitSlop={16}
+            style={[calStyles.navBtn, !canGoBack && calStyles.navBtnDisabled]}
+          >
+            <Text style={[calStyles.navBtnText, !canGoBack && calStyles.navBtnTextDisabled]}>
+              ‹
+            </Text>
+          </Pressable>
+          <Text style={calStyles.monthLabel}>
+            {LONG_MONTHS[month]} {year}
+          </Text>
+          <Pressable
+            onPress={goForward}
+            hitSlop={16}
+            style={[calStyles.navBtn, !canGoForward && calStyles.navBtnDisabled]}
+          >
+            <Text style={[calStyles.navBtnText, !canGoForward && calStyles.navBtnTextDisabled]}>
+              ›
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Day-of-week headers */}
+        <View style={calStyles.dayHeaders}>
+          {CAL_DAY_HEADERS.map((d, i) => (
+            <View key={i} style={calStyles.dayHeaderCell}>
+              <Text style={calStyles.dayHeaderText}>{d}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Calendar grid */}
+        <View style={calStyles.grid}>
+          {cells.map((cell, i) => (
+            <View key={i} style={calStyles.cell}>
+              {cell.inMonth ? (
+                <>
+                  <Text
+                    style={[
+                      calStyles.cellNum,
+                      cell.isToday   && calStyles.cellNumToday,
+                      cell.isFuture  && calStyles.cellNumFuture,
+                    ]}
+                  >
+                    {cell.day}
+                  </Text>
+                  <View
+                    style={[
+                      calStyles.dot,
+                      cell.hasSession && !cell.isFuture
+                        ? calStyles.dotActive
+                        : calStyles.dotHidden,
+                    ]}
+                  />
+                </>
+              ) : null}
+            </View>
+          ))}
+        </View>
+
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TrendsScreen() {
-  const [stats, setStats]           = useState<Stats>(() => computeStats([]));
-  const [sessions, setSessions]     = useState<GlobeItem[]>([]);
+  const [stats, setStats]             = useState<Stats>(() => computeStats([]));
+  const [sessions, setSessions]       = useState<GlobeItem[]>([]);
   const [selectedTag, setSelectedTag] = useState<'All' | SubjectTag>('All');
+  const [calendarOpen, setCalendarOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -267,9 +443,17 @@ export default function TrendsScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Trends</Text>
       </View>
+      <FocusCalendarModal
+        visible={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        sessions={sessions}
+      />
+
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        <StatCard label="Total focus time" value={fmtDuration(totalSecs)} />
+        <Pressable onPress={() => setCalendarOpen(true)}>
+          <StatCard label="Total focus time" value={fmtDuration(totalSecs)} />
+        </Pressable>
 
         <View style={styles.row}>
           <StatCard
@@ -522,5 +706,124 @@ const styles = StyleSheet.create({
     color: StrivoColors.accent,
     fontWeight: '500',
     letterSpacing: 0.3,
+  },
+});
+
+// ─── Calendar modal styles ────────────────────────────────────────────────────
+
+const calStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#1A1208',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3D2E1A',
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#F0E6D3',
+    fontFamily: 'serif',
+    letterSpacing: 0.4,
+  },
+  closeBtn: {
+    position: 'absolute',
+    right: 20,
+    padding: 4,
+  },
+  closeBtnText: {
+    fontSize: 18,
+    color: '#9A8A72',
+  },
+  monthNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  monthLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#F0E6D3',
+    fontFamily: 'serif',
+    letterSpacing: 0.3,
+  },
+  navBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navBtnDisabled: {
+    opacity: 0.25,
+  },
+  navBtnText: {
+    fontSize: 28,
+    color: '#C9933A',
+    lineHeight: 32,
+  },
+  navBtnTextDisabled: {
+    color: '#9A8A72',
+  },
+  dayHeaders: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    marginBottom: 4,
+  },
+  dayHeaderCell: {
+    width: `${100 / 7}%` as unknown as number,
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  dayHeaderText: {
+    fontSize: 11,
+    color: '#8A6020',
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+  },
+  cell: {
+    width: `${100 / 7}%` as unknown as number,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  cellNum: {
+    fontSize: 15,
+    color: '#F0E6D3',
+    fontWeight: '400',
+  },
+  cellNumToday: {
+    color: '#C9933A',
+    fontWeight: '700',
+  },
+  cellNumFuture: {
+    color: '#9A8A72',
+    opacity: 0.45,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  dotActive: {
+    backgroundColor: '#C9933A',
+  },
+  dotHidden: {
+    backgroundColor: 'transparent',
   },
 });
