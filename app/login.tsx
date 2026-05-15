@@ -10,10 +10,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { SvgXml } from 'react-native-svg';
 
 import { StrivoColors } from '@/constants/theme';
 import { saveUserProfile } from '@/services/storage';
 import { supabase } from '@/lib/supabase';
+
+const LAPTOP_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 354.24402 256.59116"><rect width="100%" height="100%" fill="#1A1208"/><g><path style="fill:#C9933A;stroke-width:1;fill-rule:evenodd" d="m 10.732199999999466 256.27700000000004 c -3.8162,-0.633 -6.7055,-2.792 -7.8576,-5.872 -0.6865,-1.834 -2.1653,-8.968 -2.6685,-12.873 -0.3267,-2.531 -0.319,-2.603 0.4204,-3.864 0.7019,-1.198 6.0345,-6.696 32.552,-33.562 l 10.3761,-10.512 -0.9094,-0.933 c -1.0374,-1.064 -2.013,-2.99 -2.4423,-4.821 -0.4491,-1.917 -0.7714,-171.995 -0.331,-174.793 0.789,-5.016 3.9299,-8.179 8.7869,-8.848 1.1091,-0.154 55.4231,-0.231 130.0964,-0.187 l 128.1915,0.08 1.9335,0.952 c 2.2503,1.108 3.7942,2.691 4.8769,4.999 l 0.7692,1.641 v 87.307 c 0,72.98 -0.066,87.57 -0.4006,88.913 -0.4724,1.896 -1.5936,4.094 -2.5438,4.987 l -0.6788,0.638 6.7309,6.895 c 23.2696,23.844 35.9677,37.036 36.344,37.765 0.3885,0.75 0.3697,1.18 -0.1777,4.255 -1.0153,5.689 -2.2536,11.003 -2.9323,12.581 -0.7372,1.714 -2.4136,3.355 -4.261,4.173 -3.387,1.497 6.8346,1.415 -170.0017,1.378 -95.4674,-0.02 -164.956,-0.143 -165.8731,-0.295 z"/></g></svg>`;
 
 export default function LoginScreen() {
   const [email, setEmail]       = useState('');
@@ -72,6 +75,7 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.inner}>
+          <SvgXml xml={LAPTOP_SVG} width={260} height={188} style={{ alignSelf: 'center', marginBottom: 8 }} />
           <Text style={styles.heading}>Sign in</Text>
 
           <TextInput
