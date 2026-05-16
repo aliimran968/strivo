@@ -222,16 +222,24 @@ function StatCard({
   value,
   sub,
   half,
+  accent,
+  interactive,
 }: {
   label: string;
   value: string;
   sub?: string;
   half?: boolean;
+  accent?: boolean;
+  interactive?: boolean;
 }) {
   return (
-    <View style={[styles.card, half && styles.cardHalf]}>
+    <View style={[styles.card, half && styles.cardHalf, interactive && styles.cardInteractive]}>
       <Text style={styles.cardLabel}>{label}</Text>
-      <Text style={styles.cardValue} numberOfLines={1} adjustsFontSizeToFit>
+      <Text
+        style={accent ? styles.cardValueAccent : styles.cardValue}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+      >
         {value}
       </Text>
       {sub ? <Text style={styles.cardSub}>{sub}</Text> : null}
@@ -648,6 +656,7 @@ export default function TrendsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Trends</Text>
+        <Text style={styles.subtitle}>Your focus story.</Text>
       </View>
       <FocusCalendarModal
         visible={calendarOpen}
@@ -658,20 +667,20 @@ export default function TrendsScreen() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         <Pressable onPress={() => setCalendarOpen(true)}>
-          <StatCard label="Total focus time" value={fmtDuration(totalSecs)} />
+          <StatCard label="Total focus time" value={fmtDuration(totalSecs)} interactive />
         </Pressable>
 
-        <View style={styles.row}>
-          <StatCard
-            label="Current streak"
-            value={streak === 0 ? '—' : `${streak}`}
-            sub={streak > 0 ? (streak === 1 ? 'day streak' : 'day streak') : undefined}
-            half
-          />
-          <StatCard label="Longest session" value={fmtDuration(longestSecs)} half />
-        </View>
+        <StatCard
+          label="Current streak"
+          value={streak === 0 ? '—' : `${streak} 🔥`}
+          sub={streak > 0 ? 'day streak' : undefined}
+          accent={streak > 0}
+        />
 
-        <StatCard label="Most used tag" value={tagDisplay} />
+        <View style={styles.row}>
+          <StatCard label="Longest session" value={fmtDuration(longestSecs)} half />
+          <StatCard label="Most used tag" value={tagDisplay} half />
+        </View>
 
         <View style={styles.chartCard}>
           <Text style={styles.chartTitle}>Last 7 days</Text>
@@ -762,6 +771,12 @@ const styles = StyleSheet.create({
     fontFamily: 'serif',
     letterSpacing: 0.5,
   },
+  subtitle: {
+    fontSize: 13,
+    color: StrivoColors.textMuted,
+    letterSpacing: 0.3,
+    marginTop: 4,
+  },
   scroll: {
     padding: 16,
     gap: 12,
@@ -782,6 +797,10 @@ const styles = StyleSheet.create({
   cardHalf: {
     flex: 1,
   },
+  cardInteractive: {
+    borderColor: StrivoColors.accent,
+    borderWidth: 1.5,
+  },
   cardLabel: {
     fontSize: 11,
     color: StrivoColors.textMuted,
@@ -792,6 +811,14 @@ const styles = StyleSheet.create({
     fontSize: 34,
     fontWeight: '300',
     color: StrivoColors.text,
+    fontFamily: 'serif',
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  cardValueAccent: {
+    fontSize: 34,
+    fontWeight: '300',
+    color: StrivoColors.accent,
     fontFamily: 'serif',
     letterSpacing: 0.5,
     marginTop: 2,
