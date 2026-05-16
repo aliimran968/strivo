@@ -17,7 +17,7 @@ import Animated, {
   useAnimatedProps,
   withSpring,
 } from 'react-native-reanimated';
-import Svg, { Circle, Ellipse, Path, G, Defs, ClipPath } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path, G, Defs, ClipPath, RadialGradient, Stop } from 'react-native-svg';
 
 import { StrivoColors } from '@/constants/theme';
 import { SubjectTag, TAG_CONFIG } from '@/constants/tags';
@@ -110,10 +110,12 @@ function LaptopIcon() {
   return (
     <G>
       <Path d="M -7,-6 L 7,-6 L 7,0 L -7,0 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
+        fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.6} />
+      <Path d="M -5.5,-4.5 L 5.5,-4.5 L 5.5,-1.5 L -5.5,-1.5 Z"
+        fill="#1A1208" opacity={0.7} />
       <Path d="M -9,0 L 9,0 L 7,4.5 L -7,4.5 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
-      <Path d="M -5,2 L 5,2" stroke={IC} strokeWidth={0.9} strokeLinecap="round" />
+        fill="#C9933A" opacity={0.88} stroke="#1A1208" strokeWidth={0.6} strokeLinejoin="round" />
+      <Path d="M -3,2 L 3,2" stroke="#3a2510" strokeWidth={0.9} strokeLinecap="round" />
     </G>
   );
 }
@@ -121,8 +123,9 @@ function PencilIcon() {
   return (
     <G>
       <Path d="M -2.5,-8 L 2.5,-8 L 2.5,5.5 L 0,8.5 L -2.5,5.5 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
-      <Path d="M -2.5,-5.5 L 2.5,-5.5" stroke={IC} strokeWidth={IS} />
+        fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.5} strokeLinejoin="round" />
+      <Path d="M -2.5,5.5 L 0,8.5 L 2.5,5.5 Z" fill="#1A1208" opacity={0.75} />
+      <Path d="M -2.5,-5.5 L 2.5,-5.5" stroke="#3a2510" strokeWidth={1.2} />
     </G>
   );
 }
@@ -130,9 +133,9 @@ function QuillIcon() {
   return (
     <G>
       <Path d="M 0,-9 C 7,-4 7,4 0,9 C -7,4 -7,-4 0,-9 Z"
-        stroke={IC} strokeWidth={IS} fill="none" />
-      <Path d="M 0,9 L 0,12" stroke={IC} strokeWidth={IS} strokeLinecap="round" />
-      <Path d="M 0,-8 L 0,8" stroke={IC} strokeWidth={0.85} strokeDasharray="2 1.8" />
+        fill="#C9933A" opacity={0.88} stroke="#1A1208" strokeWidth={0.5} />
+      <Path d="M 0,-8 L 0,8" stroke="#1A1208" strokeWidth={0.9} />
+      <Path d="M 0,9 L 0,12" stroke="#C9933A" strokeWidth={1.6} strokeLinecap="round" opacity={0.88} />
     </G>
   );
 }
@@ -140,10 +143,12 @@ function BookIcon() {
   return (
     <G>
       <Path d="M -7,5.5 L -7,-5 Q -3.5,-7 0,-5 L 0,5.5 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
+        fill="#C9933A" opacity={0.88} stroke="#1A1208" strokeWidth={0.5} strokeLinejoin="round" />
       <Path d="M 7,5.5 L 7,-5 Q 3.5,-7 0,-5 L 0,5.5 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
-      <Path d="M 0,-5 L 0,5.5" stroke={IC} strokeWidth={IS} />
+        fill="#C9933A" opacity={0.88} stroke="#1A1208" strokeWidth={0.5} strokeLinejoin="round" />
+      <Path d="M 0,-5 L 0,5.5" stroke="#1A1208" strokeWidth={1} />
+      <Path d="M -5,0 L -1,0" stroke="#3a2510" strokeWidth={0.4} opacity={0.7} />
+      <Path d="M  1,0 L  5,0" stroke="#3a2510" strokeWidth={0.4} opacity={0.7} />
     </G>
   );
 }
@@ -151,11 +156,11 @@ function RulerIcon() {
   return (
     <G transform="rotate(45)">
       <Path d="M -8.5,-2.5 L 8.5,-2.5 L 8.5,2.5 L -8.5,2.5 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
-      <Path d="M -5.5,-2.5 L -5.5,0"   stroke={IC} strokeWidth={IS} />
-      <Path d="M -1.5,-2.5 L -1.5,1.5" stroke={IC} strokeWidth={IS} />
-      <Path d="M  2.5,-2.5 L  2.5,0"   stroke={IC} strokeWidth={IS} />
-      <Path d="M  6,-2.5 L  6,1.5"     stroke={IC} strokeWidth={IS} />
+        fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.5} strokeLinejoin="round" />
+      <Path d="M -5.5,-2.5 L -5.5,0"   stroke="#1A1208" strokeWidth={0.8} />
+      <Path d="M -1.5,-2.5 L -1.5,1.5" stroke="#1A1208" strokeWidth={0.8} />
+      <Path d="M  2.5,-2.5 L  2.5,0"   stroke="#1A1208" strokeWidth={0.8} />
+      <Path d="M  6,-2.5 L  6,1.5"     stroke="#1A1208" strokeWidth={0.8} />
     </G>
   );
 }
@@ -163,15 +168,14 @@ function LanternIcon() {
   return (
     <G>
       <Path d="M -2,-8 Q -2,-11.5 0,-11.5 Q 2,-11.5 2,-8"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinecap="round" />
+        stroke="#C9933A" strokeWidth={1.3} fill="none" strokeLinecap="round" opacity={0.9} />
       <Path d="M -4,-8 L 4,-8 L 4,-5.5 L -4,-5.5 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
+        fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.5} />
       <Path d="M -4.5,-5.5 L 4.5,-5.5 L 4.5,5.5 L -4.5,5.5 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
+        fill="#1A1208" opacity={0.55} stroke="#C9933A" strokeWidth={0.9} />
+      <Path d="M -2.5,-3 L 2.5,-3 L 2.5,3 L -2.5,3 Z" fill="#C9933A" opacity={0.35} />
       <Path d="M -4,5.5 L 4,5.5 L 4,8 L -4,8 Z"
-        stroke={IC} strokeWidth={IS} fill="none" strokeLinejoin="round" />
-      <Path d="M -4.5,0 L 4.5,0"  stroke={IC} strokeWidth={0.85} />
-      <Path d="M 0,-5.5 L 0,5.5"  stroke={IC} strokeWidth={0.85} />
+        fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.5} />
     </G>
   );
 }
@@ -242,6 +246,9 @@ function GlobeItemDot({ item, idx, totalItems, isNew, cx, cy, maxR, pos }: ItemP
       transform={`translate(${cx + pos.x},${cy + pos.y})`}
       opacity={alpha}
     >
+      {/* Floor shadow — stays on the floor while item drops in */}
+      <Ellipse cx={0} cy={9} rx={8} ry={2} fill="#000" opacity={0.45} />
+
       {isNew ? (
         <AnimatedG animatedProps={animProps}>
           <Icon />
@@ -391,17 +398,89 @@ function GlobeSvg({
         <ClipPath id="domeClip">
           <Circle cx={cx} cy={cy} r={globeR - 6} />
         </ClipPath>
+        <RadialGradient
+          id="domeGlow"
+          cx="50%" cy="90%" r="70%"
+          fx="50%" fy="90%"
+        >
+          <Stop offset="0%"   stopColor="#3d1e05" />
+          <Stop offset="55%"  stopColor="#1c1005" />
+          <Stop offset="100%" stopColor="#0d0803" />
+        </RadialGradient>
       </Defs>
 
-      {/* Interior fill */}
-      <Circle cx={cx} cy={cy} r={globeR - 6} fill="#120C05" />
+      {/* Interior — warm radial glow rising from the floor */}
+      <Circle cx={cx} cy={cy} r={globeR - 6} fill="url(#domeGlow)" />
 
-      {/* Ground plane */}
+      {/* Floor — warm wood with a lighter reflection band on top */}
       <Ellipse
         cx={cx} cy={cy + globeR * 0.70}
-        rx={globeR * 0.54} ry={globeR * 0.085}
-        fill="#2B1C0B" clipPath="url(#domeClip)"
+        rx={globeR * 0.54} ry={globeR * 0.095}
+        fill="#4a2508"
+        clipPath="url(#domeClip)"
       />
+      <Ellipse
+        cx={cx} cy={cy + globeR * 0.685}
+        rx={globeR * 0.46} ry={globeR * 0.032}
+        fill="#6b3a10"
+        opacity={0.55}
+        clipPath="url(#domeClip)"
+      />
+
+      {/* Back-wall depth — faint bookshelf hints */}
+      <Path
+        d={`M ${cx - globeR * 0.62},${cy - globeR * 0.5} L ${cx - globeR * 0.62},${cy + globeR * 0.55}`}
+        stroke="#5a3818" strokeWidth={1} opacity={0.35} clipPath="url(#domeClip)"
+      />
+      <Path
+        d={`M ${cx + globeR * 0.62},${cy - globeR * 0.5} L ${cx + globeR * 0.62},${cy + globeR * 0.55}`}
+        stroke="#5a3818" strokeWidth={1} opacity={0.35} clipPath="url(#domeClip)"
+      />
+      <Path
+        d={`M ${cx - globeR * 0.55},${cy - globeR * 0.05} L ${cx + globeR * 0.55},${cy - globeR * 0.05}`}
+        stroke="#6b4218" strokeWidth={0.9} opacity={0.4} clipPath="url(#domeClip)"
+      />
+
+      {/* ── Permanent floor scene: lantern, laptop, book, mug ────── */}
+      {/* Lantern — leftmost */}
+      <G transform={`translate(${cx - globeR * 0.48}, ${cy + globeR * 0.60})`}>
+        <Ellipse cx={0} cy={10} rx={8} ry={2} fill="#000" opacity={0.4}/>
+        <Path d="M -3,-14 Q -3,-18 0,-18 Q 3,-18 3,-14" stroke="#C9933A" strokeWidth={1.5} fill="none" strokeLinecap="round" opacity={0.9}/>
+        <Path d="M -5,-14 L 5,-14 L 5,-10 L -5,-10 Z" fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.6}/>
+        <Path d="M -6,-10 L 6,-10 L 6,8 L -6,8 Z" fill="#1A1208" opacity={0.6} stroke="#C9933A" strokeWidth={1}/>
+        <Path d="M -3.5,-5 L 3.5,-5 L 3.5,4 L -3.5,4 Z" fill="#C9933A" opacity={0.3}/>
+        <Path d="M -5,8 L 5,8 L 5,11 L -5,11 Z" fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.5}/>
+      </G>
+
+      {/* Laptop — left of centre */}
+      <G transform={`translate(${cx - globeR * 0.20}, ${cy + globeR * 0.60})`}>
+        <Ellipse cx={0} cy={11} rx={16} ry={3} fill="#000" opacity={0.4}/>
+        <Path d="M -13,-9 L 13,-9 L 13,3 L -13,3 Z" fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.7}/>
+        <Path d="M -11,-7 L 11,-7 L 11,1 L -11,1 Z" fill="#1A1208" opacity={0.85}/>
+        <Path d="M -16,3 L 16,3 L 13,8 L -13,8 Z" fill="#C9933A" opacity={0.85} stroke="#1A1208" strokeWidth={0.6}/>
+        <Path d="M -4,5.5 L 4,5.5" stroke="#3a2510" strokeWidth={1.2} strokeLinecap="round"/>
+      </G>
+
+      {/* Book — right of centre */}
+      <G transform={`translate(${cx + globeR * 0.12}, ${cy + globeR * 0.60})`}>
+        <Ellipse cx={0} cy={11} rx={11} ry={2.5} fill="#000" opacity={0.4}/>
+        <Path d="M -9,9 L -9,-7 Q -5,-10 0,-7 L 0,9 Z" fill="#C9933A" opacity={0.88} stroke="#1A1208" strokeWidth={0.6}/>
+        <Path d="M 9,9 L 9,-7 Q 5,-10 0,-7 L 0,9 Z" fill="#C9933A" opacity={0.88} stroke="#1A1208" strokeWidth={0.6}/>
+        <Path d="M 0,-7 L 0,9" stroke="#1A1208" strokeWidth={1.2}/>
+        <Path d="M -6,1 L -1,1" stroke="#3a2510" strokeWidth={0.5} opacity={0.7}/>
+        <Path d="M 1,1 L 6,1" stroke="#3a2510" strokeWidth={0.5} opacity={0.7}/>
+      </G>
+
+      {/* Coffee mug — rightmost */}
+      <G transform={`translate(${cx + globeR * 0.36}, ${cy + globeR * 0.58})`}>
+        <Ellipse cx={0} cy={10} rx={10} ry={2.5} fill="#000" opacity={0.4}/>
+        <Path d="M -2,-14 Q -1,-17 -2,-20" fill="none" stroke="#C9933A" strokeWidth={1} strokeLinecap="round" opacity={0.28}/>
+        <Path d="M 2,-13 Q 3,-16 2,-19" fill="none" stroke="#C9933A" strokeWidth={1} strokeLinecap="round" opacity={0.22}/>
+        <Path d="M -6,-9 L 6,-9 L 6,8 Q 6,9 5,9 L -5,9 Q -6,9 -6,8 Z" fill="#C9933A" opacity={0.9} stroke="#1A1208" strokeWidth={0.6}/>
+        <Path d="M 6,-6 Q 11,-6 11,-2 Q 11,2 6,2" stroke="#C9933A" strokeWidth={1.8} fill="none" opacity={0.9} strokeLinecap="round"/>
+        <Ellipse cx={0} cy={-9} rx={6} ry={1.5} fill="#1A1208" opacity={0.85}/>
+        <Ellipse cx={0} cy={-9} rx={4.5} ry={1} fill="#2a1505"/>
+      </G>
 
       {/* Session items */}
       {items.map((item, idx) => (
@@ -638,7 +717,7 @@ export default function GlobeScreen() {
           <View style={styles.emptyHint}>
             <Text style={styles.emptyTitle}>Your globe awaits</Text>
             <Text style={styles.emptyBody}>
-              Complete your first focus session on the Focus tab{'\n'}and watch it come to life.
+              Complete your first focus session and watch it come to life.
             </Text>
           </View>
         )}
