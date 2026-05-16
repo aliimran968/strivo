@@ -1,10 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Alert,
   View,
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
+  ScrollView,
   StyleSheet,
   AppState,
   AppStateStatus,
@@ -27,8 +29,9 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { StrivoColors } from '@/constants/theme';
 import { SubjectTag, TAG_CONFIG, TAG_LIST, DEFAULT_TAG } from '@/constants/tags';
-import { saveGlobeItem, getGlobeItems, saveLastTag, getLastTag, getUserProfile, saveUserProfile, getReminderTime, saveReminderTime, clearUserSession, saveBackgroundSession, getBackgroundSession, clearBackgroundSession } from '@/services/storage';
-import { syncSessionToSupabase } from '@/services/sessions';
+import { saveGlobeItem, getGlobeItems, saveLastTag, getLastTag, getUserProfile, saveUserProfile, getReminderTime, saveReminderTime, clearUserSession, saveBackgroundSession, getBackgroundSession, clearBackgroundSession, GlobeItem } from '@/services/storage';
+import { syncSessionToSupabase, getSessionsMerged } from '@/services/sessions';
+import { getXPLevel, XP_LEVELS } from '@/constants/xp';
 import { notifySessionComplete, scheduleDailyReminder } from '@/services/notifications';
 import { supabase } from '@/lib/supabase';
 
@@ -86,6 +89,235 @@ function formatTime(secs: number): string {
 
 const SIDEBAR_W = 260;
 
+// ─── Profile modal ────────────────────────────────────────────────────────────
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function fmtDurationProfile(secs: number): string {
+  if (secs === 0) return '—';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}
+
+function profileDateKey(d: Date): string {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function profileShiftKey(key: string, days: number): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  date.setDate(date.getDate() + days);
+  return profileDateKey(date);
+}
+
+function fmtJoinedAt(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return `${MONTHS[d.getMonth()]} '${String(d.getFullYear()).slice(-2)}`;
+}
+
+function ProfileModal({
+  visible,
+  onClose,
+  userName,
+  onNameSaved,
+  xp,
+  coins,
+  joinedAt,
+  sessions,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  userName: string;
+  onNameSaved: (newName: string) => void | Promise<void>;
+  xp: number;
+  coins: number;
+  joinedAt: string | null;
+  sessions: GlobeItem[];
+}) {
+  const insets = useSafeAreaInsets();
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput]     = useState('');
+
+  // Reset edit state each time the modal opens
+  useEffect(() => {
+    if (visible) setEditingName(false);
+  }, [visible]);
+
+  const stats = useMemo(() => {
+    let totalSecs = 0;
+    const byDay = new Set<string>();
+    for (const s of sessions) {
+      totalSecs += s.durationSecs;
+      byDay.add(profileDateKey(new Date(s.completedAt)));
+    }
+    let cursor = profileDateKey(new Date());
+    if (!byDay.has(cursor)) cursor = profileShiftKey(cursor, -1);
+    let streak = 0;
+    while (byDay.has(cursor)) {
+      streak++;
+      cursor = profileShiftKey(cursor, -1);
+    }
+    return { totalSecs, sessionCount: sessions.length, streak };
+  }, [sessions]);
+
+  const level = getXPLevel(xp);
+  const progress = level.maxXP === Infinity
+    ? 1
+    : Math.max(0, Math.min(1, (xp - level.minXP) / (level.maxXP - level.minXP)));
+  const nextTitle = level.maxXP === Infinity ? null : XP_LEVELS[level.level]?.title ?? null;
+  const xpRightLabel = level.maxXP === Infinity ? `${xp}` : `${xp} / ${level.maxXP}`;
+  const xpSubtext = level.maxXP === Infinity
+    ? 'Max level reached'
+    : `${Math.max(0, level.maxXP - xp)} XP to ${nextTitle ?? '—'}`;
+
+  const initial = (userName || '?').trim().charAt(0).toUpperCase() || '?';
+
+  function startEditing() {
+    setNameInput(userName || '');
+    setEditingName(true);
+  }
+
+  function cancelEditing() {
+    setEditingName(false);
+  }
+
+  async function saveEditing() {
+    const trimmed = nameInput.trim();
+    setEditingName(false);
+    if (!trimmed) return;
+    await onNameSaved(trimmed);
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <View style={[profileStyles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        <View style={profileStyles.topBar}>
+          <Text style={profileStyles.topBarLabel}>PROFILE</Text>
+          <Pressable onPress={onClose} hitSlop={12} style={profileStyles.closeBtn}>
+            <Text style={profileStyles.closeBtnText}>✕</Text>
+          </Pressable>
+        </View>
+
+        <ScrollView
+          contentContainerStyle={profileStyles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Avatar */}
+          <View style={profileStyles.avatarBlock}>
+            <View style={profileStyles.avatar}>
+              <Text style={profileStyles.avatarInitial}>{initial}</Text>
+            </View>
+            <Text style={profileStyles.profileName}>{userName || 'Hello'}</Text>
+            <Text style={profileStyles.profileLevelTitle}>
+              {level.title} · Level {level.level}
+            </Text>
+          </View>
+
+          {/* XP bar */}
+          <View style={profileStyles.xpBlock}>
+            <View style={profileStyles.xpHeader}>
+              <Text style={profileStyles.xpLabel}>XP</Text>
+              <Text style={profileStyles.xpCount}>{xpRightLabel}</Text>
+            </View>
+            <View style={profileStyles.xpTrack}>
+              <View style={[profileStyles.xpFill, { width: `${progress * 100}%` }]} />
+            </View>
+            <Text style={profileStyles.xpSubtext}>{xpSubtext}</Text>
+          </View>
+
+          <View style={profileStyles.divider} />
+
+          {/* Coins */}
+          <View style={profileStyles.coinRow}>
+            <Text style={profileStyles.coinLabel}>COINS</Text>
+            <View style={profileStyles.coinValueWrap}>
+              <View style={profileStyles.coinDot}>
+                <Text style={profileStyles.coinDotText}>c</Text>
+              </View>
+              <Text style={profileStyles.coinValue}>{coins}</Text>
+            </View>
+          </View>
+
+          <View style={profileStyles.divider} />
+
+          {/* Stats grid */}
+          <View style={profileStyles.statsGrid}>
+            <View style={profileStyles.statCell}>
+              <Text style={profileStyles.statLabel}>Total focus time</Text>
+              <Text style={profileStyles.statValue}>{fmtDurationProfile(stats.totalSecs)}</Text>
+            </View>
+            <View style={profileStyles.statCell}>
+              <Text style={profileStyles.statLabel}>Sessions</Text>
+              <Text style={profileStyles.statValue}>{stats.sessionCount}</Text>
+            </View>
+            <View style={profileStyles.statCell}>
+              <Text style={profileStyles.statLabel}>Streak</Text>
+              <Text style={profileStyles.statValue}>
+                {stats.streak > 0 ? `${stats.streak} 🔥` : '—'}
+              </Text>
+            </View>
+            <View style={profileStyles.statCell}>
+              <Text style={profileStyles.statLabel}>Member since</Text>
+              <Text style={profileStyles.statValue}>{fmtJoinedAt(joinedAt)}</Text>
+            </View>
+          </View>
+
+          <View style={profileStyles.divider} />
+
+          {/* Edit name */}
+          <View style={profileStyles.editNameBlock}>
+            {editingName ? (
+              <>
+                <TextInput
+                  style={profileStyles.editInput}
+                  value={nameInput}
+                  onChangeText={setNameInput}
+                  autoFocus
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  onSubmitEditing={saveEditing}
+                />
+                <View style={profileStyles.editBtnRow}>
+                  <Pressable onPress={cancelEditing} hitSlop={8}>
+                    <Text style={profileStyles.editCancelText}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={saveEditing}
+                    style={profileStyles.editSaveBtn}
+                    hitSlop={8}
+                  >
+                    <Text style={profileStyles.editSaveText}>Save</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Pressable onPress={startEditing} hitSlop={8} style={profileStyles.editPrompt}>
+                <Text style={profileStyles.editPromptText}>Edit name →</Text>
+              </Pressable>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FocusScreen() {
@@ -101,10 +333,12 @@ export default function FocusScreen() {
   const [reminderHour, setReminderHour] = useState(9);
   const [reminderMinute, setReminderMinute] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-  const [nameInput, setNameInput] = useState('');
 
-  const nameInputRef = useRef<TextInput>(null);
+  const [profileOpen, setProfileOpen]         = useState(false);
+  const [profileSessions, setProfileSessions] = useState<GlobeItem[]>([]);
+  const [userXP, setUserXP]                   = useState(0);
+  const [userCoins, setUserCoins]             = useState(0);
+  const [joinedAt, setJoinedAt]               = useState<string | null>(null);
 
   const insets = useSafeAreaInsets();
   const sidebarX = useSharedValue(SIDEBAR_W);
@@ -382,10 +616,49 @@ export default function FocusScreen() {
   }
 
   function closeSidebar() {
-    setEditingName(false);
     sidebarX.value = withTiming(SIDEBAR_W, { duration: 220 });
     backdropOpacity.value = withTiming(0, { duration: 220 });
     setTimeout(() => setSidebarOpen(false), 225);
+  }
+
+  async function openProfile() {
+    closeSidebar();
+    const profile = await getUserProfile();
+    setUserXP(profile?.xp ?? 0);
+    setUserCoins(profile?.coins ?? 0);
+    let ja = profile?.joinedAt ?? null;
+    if (!ja) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        ja = user?.created_at ?? null;
+      } catch {
+        // offline — leave null
+      }
+    }
+    setJoinedAt(ja);
+    const items = await getSessionsMerged();
+    setProfileSessions(items);
+    setProfileOpen(true);
+  }
+
+  async function handleProfileNameSaved(newName: string) {
+    const trimmed = newName.trim();
+    if (!trimmed) return;
+    setUserName(trimmed);
+    const existing = await getUserProfile();
+    await saveUserProfile({
+      name: trimmed,
+      tags: existing?.tags ?? [],
+      xp: existing?.xp,
+      coins: existing?.coins,
+      joinedAt: existing?.joinedAt,
+    });
+    supabase.auth.getUser()
+      .then(({ data: { user } }) => {
+        if (!user) return;
+        void supabase.from('profiles').update({ name: trimmed }).eq('id', user.id);
+      })
+      .catch(() => {});
   }
 
   async function doLogOut() {
@@ -405,33 +678,6 @@ export default function FocusScreen() {
         { text: 'Yes', style: 'destructive', onPress: doLogOut },
       ],
     );
-  }
-
-  function handleStartEditName() {
-    setNameInput(userName || '');
-    setEditingName(true);
-  }
-
-  function handleCancelNameEdit() {
-    setEditingName(false);
-  }
-
-  async function handleSaveNameEdit() {
-    const trimmed = nameInput.trim();
-    // Close edit mode immediately so onBlur-triggered cancel is a no-op
-    setEditingName(false);
-    if (!trimmed) return;
-    setUserName(trimmed);
-    // AsyncStorage — always updates
-    const existing = await getUserProfile();
-    await saveUserProfile({ name: trimmed, tags: existing?.tags ?? [] });
-    // Supabase — silent fail if offline
-    supabase.auth.getUser()
-      .then(({ data: { user } }) => {
-        if (!user) return;
-        void supabase.from('profiles').update({ name: trimmed }).eq('id', user.id);
-      })
-      .catch(() => {});
   }
 
   function handleBroken() {
@@ -705,33 +951,9 @@ export default function FocusScreen() {
           />
           <Animated.View style={[styles.sidebarPanel, sidebarAnimStyle]}>
             <View style={[styles.sidebarTop, { paddingTop: insets.top + 24 }]}>
-              {editingName ? (
-                <View style={styles.nameEditRow}>
-                  <TextInput
-                    ref={nameInputRef}
-                    style={styles.nameInput}
-                    value={nameInput}
-                    onChangeText={setNameInput}
-                    autoFocus
-                    autoCapitalize="words"
-                    autoCorrect={false}
-                    returnKeyType="done"
-                    onSubmitEditing={handleSaveNameEdit}
-                    onBlur={handleCancelNameEdit}
-                  />
-                  <TouchableOpacity
-                    style={styles.nameSaveBtn}
-                    onPress={handleSaveNameEdit}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.nameSaveBtnText}>Save</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <TouchableOpacity onPress={handleStartEditName} activeOpacity={0.7}>
-                  <Text style={styles.sidebarName}>{userName || 'Hello'}</Text>
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity onPress={openProfile} activeOpacity={0.7}>
+                <Text style={styles.sidebarName}>{userName || 'Hello'}</Text>
+              </TouchableOpacity>
               <View style={styles.sidebarTagRow}>
                 <Text style={styles.sidebarTagEmoji}>{(TAG_CONFIG[selectedTag] ?? TAG_CONFIG[DEFAULT_TAG]).emoji}</Text>
                 <Text style={styles.sidebarTagLabel}>{(TAG_CONFIG[selectedTag] ?? TAG_CONFIG[DEFAULT_TAG]).label}</Text>
@@ -747,6 +969,18 @@ export default function FocusScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* ── Profile modal ── */}
+      <ProfileModal
+        visible={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        userName={userName}
+        onNameSaved={handleProfileNameSaved}
+        xp={userXP}
+        coins={userCoins}
+        joinedAt={joinedAt}
+        sessions={profileSessions}
+      />
 
       {/* ── Tag selection bottom sheet ── */}
       <Modal
@@ -1149,34 +1383,260 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  // ── Name edit ───────────────────────────────────────────────────────────────
-  nameEditRow: {
+});
+
+// ─── Profile modal styles ────────────────────────────────────────────────────
+
+const profileStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#1A1208',
+  },
+  topBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A1A0A',
   },
-  nameInput: {
-    flex: 1,
-    fontSize: 22,
-    fontWeight: '600',
-    color: StrivoColors.text,
-    fontFamily: 'serif',
-    letterSpacing: 0.3,
-    borderBottomWidth: 1.5,
-    borderBottomColor: StrivoColors.accent,
-    paddingVertical: 4,
-    paddingHorizontal: 0,
-  },
-  nameSaveBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: StrivoColors.accent,
-  },
-  nameSaveBtnText: {
+  topBarLabel: {
     fontSize: 13,
+    color: '#4A3318',
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    fontWeight: '700',
+  },
+  closeBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#C9933A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnText: {
+    fontSize: 14,
+    color: '#1A1208',
+    fontWeight: '700',
+    lineHeight: 16,
+  },
+  scrollContent: {
+    paddingBottom: 32,
+  },
+
+  // Avatar
+  avatarBlock: {
+    alignItems: 'center',
+    paddingTop: 28,
+    paddingBottom: 20,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    borderColor: '#C9933A',
+    backgroundColor: '#2E1C0A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  avatarInitial: {
+    fontSize: 26,
+    color: '#C9933A',
+    fontFamily: 'serif',
     fontWeight: '600',
-    color: StrivoColors.bg,
+  },
+  profileName: {
+    fontSize: 20,
+    color: '#F0E6D3',
+    fontFamily: 'serif',
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    marginBottom: 6,
+  },
+  profileLevelTitle: {
+    fontSize: 12,
+    color: '#C9933A',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+
+  // XP
+  xpBlock: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  xpHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  xpLabel: {
+    fontSize: 11,
+    color: '#6B5030',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  xpCount: {
+    fontSize: 13,
+    color: '#F0E6D3',
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+  xpTrack: {
+    height: 4,
+    backgroundColor: '#2E1C0A',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  xpFill: {
+    height: '100%',
+    backgroundColor: '#C9933A',
+    borderRadius: 2,
+  },
+  xpSubtext: {
+    fontSize: 11,
+    color: '#6B5030',
+    letterSpacing: 0.4,
+    marginTop: 6,
+    textAlign: 'right',
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: '#2A1A0A',
+    marginHorizontal: 20,
+  },
+
+  // Coins
+  coinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+  },
+  coinLabel: {
+    fontSize: 11,
+    color: '#6B5030',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  coinValueWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  coinDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#C9933A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coinDotText: {
+    fontSize: 12,
+    color: '#1A1208',
+    fontWeight: '700',
+    fontFamily: 'serif',
+  },
+  coinValue: {
+    fontSize: 18,
+    color: '#C9933A',
+    fontFamily: 'serif',
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+
+  // Stats 2x2 grid
+  statsGrid: {
+    marginHorizontal: 16,
+    marginVertical: 14,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    backgroundColor: '#2A1A0A',
+    borderRadius: 12,
+    overflow: 'hidden',
+    gap: 1,
+  },
+  statCell: {
+    width: '49.7%' as unknown as number,
+    backgroundColor: '#1E1208',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: '#6B5030',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  statValue: {
+    fontSize: 18,
+    color: '#F0E6D3',
+    fontFamily: 'serif',
+    fontWeight: '500',
+    letterSpacing: 0.3,
+  },
+
+  // Edit name
+  editNameBlock: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  editPrompt: {
+    paddingVertical: 6,
+  },
+  editPromptText: {
+    fontSize: 13,
+    color: '#6B5030',
+    letterSpacing: 0.4,
+  },
+  editInput: {
+    width: '100%',
+    fontSize: 16,
+    color: '#F0E6D3',
+    backgroundColor: '#2E1C0A',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#C9933A',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  editBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 18,
+    marginTop: 14,
+  },
+  editCancelText: {
+    fontSize: 13,
+    color: '#9A8A72',
+    letterSpacing: 0.3,
+  },
+  editSaveBtn: {
+    backgroundColor: '#C9933A',
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  editSaveText: {
+    fontSize: 13,
+    color: '#1A1208',
+    fontWeight: '700',
     letterSpacing: 0.3,
   },
 });

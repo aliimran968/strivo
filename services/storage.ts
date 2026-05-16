@@ -11,6 +11,9 @@ export type GlobeItem = {
 export type UserProfile = {
   name: string;
   tags: SubjectTag[];
+  xp?: number;
+  coins?: number;
+  joinedAt?: string;
 };
 
 const STORAGE_KEY            = '@strivo/globe_items';
@@ -203,9 +206,15 @@ export async function clearAllData(): Promise<void> {
 
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
   try {
-    await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profile));
-    if (profile.tags.length > 0) {
-      await saveLastTag(profile.tags[0]);
+    let joinedAt = profile.joinedAt;
+    if (!joinedAt) {
+      const existing = await getUserProfile();
+      joinedAt = existing?.joinedAt ?? new Date().toISOString();
+    }
+    const toSave: UserProfile = { ...profile, joinedAt };
+    await AsyncStorage.setItem(USER_PROFILE_KEY, JSON.stringify(toSave));
+    if (toSave.tags.length > 0) {
+      await saveLastTag(toSave.tags[0]);
     }
   } catch {
     // silently fail
