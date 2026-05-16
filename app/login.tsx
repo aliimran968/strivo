@@ -108,11 +108,12 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.inner}>
-          <SvgXml xml={LAPTOP_SVG} width={260} height={188} style={{ alignSelf: 'center', marginBottom: 8 }} />
+          <Text style={styles.wordmark}>STRIVO</Text>
+          <SvgXml xml={LAPTOP_SVG} width={260} height={188} style={{ alignSelf: 'center', marginTop: 24, marginBottom: 8 }} />
 
           {view === 'login' ? (
             <>
-              <Text style={styles.heading}>Sign in</Text>
+              <Text style={styles.heading}>Welcome back.</Text>
 
               <TextInput
                 style={styles.input}
@@ -147,7 +148,7 @@ export default function LoginScreen() {
             </>
           ) : (
             <>
-              <Text style={styles.heading}>Reset password</Text>
+              <Text style={styles.heading}>Reset password.</Text>
 
               {resetSent ? (
                 <Text style={styles.resetSentText}>Check your email for a reset link.</Text>
@@ -197,6 +198,15 @@ export default function LoginScreen() {
             <Text style={styles.btnText}>{resetLoading ? 'Sending…' : 'Send reset link'}</Text>
           </TouchableOpacity>
         ) : null}
+
+        {view === 'login' && (
+          <View style={styles.createAccountRow}>
+            <Text style={styles.createAccountPrompt}>Don't have an account?</Text>
+            <TouchableOpacity onPress={() => router.push('/register')} activeOpacity={0.7}>
+              <Text style={styles.createAccountLink}>Create account</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -223,14 +233,23 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
     justifyContent: 'center',
-    gap: 20,
+    gap: 16,
+  },
+  wordmark: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 4,
+    color: StrivoColors.accent,
+    fontFamily: 'serif',
+    alignSelf: 'center',
+    marginBottom: 12,
   },
   heading: {
     fontSize: 32,
     fontWeight: '700',
     color: StrivoColors.text,
     fontFamily: 'serif',
-    marginBottom: 12,
+    marginBottom: 24,
   },
   input: {
     fontSize: 17,
@@ -271,7 +290,25 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 13,
-    color: '#88786a',
+    color: StrivoColors.accentDim,
+    letterSpacing: 0.2,
+  },
+  createAccountRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 16,
+  },
+  createAccountPrompt: {
+    fontSize: 13,
+    color: StrivoColors.textMuted,
+    letterSpacing: 0.2,
+  },
+  createAccountLink: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: StrivoColors.accent,
     letterSpacing: 0.2,
   },
   resetSentText: {
