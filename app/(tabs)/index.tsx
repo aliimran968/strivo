@@ -698,7 +698,7 @@ export default function FocusScreen() {
 
     // ── Earn XP + coins: 1 per minute focused, doubled in deep focus ───────
     const baseMins = Math.max(1, Math.floor(totalDurationRef.current / 60));
-    const minsEarned = deepFocusRef.current ? baseMins * 2 : baseMins;
+    const minsEarned = deepFocusRef.current ? Math.round(baseMins * 2.5) : baseMins;
     const existing = await getUserProfile();
     const newXP    = (existing?.xp    ?? 0) + minsEarned;
     const newCoins = (existing?.coins ?? 0) + minsEarned;
