@@ -18,6 +18,7 @@ import Animated, {
   useAnimatedProps,
   useAnimatedStyle,
   withTiming,
+  withSpring,
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -364,6 +365,17 @@ export default function FocusScreen() {
     opacity: backdropOpacity.value,
   }));
 
+  // ── Completion animation shared values ──────────────────────────────────────
+  const completionScale       = useSharedValue(0);
+  const completionGlowOpacity = useSharedValue(0);
+
+  const checkmarkAnimStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: completionScale.value }],
+  }));
+  const glowAnimStyle = useAnimatedStyle(() => ({
+    opacity: completionGlowOpacity.value,
+  }));
+
   const sessionStateRef = useRef<SessionState>('idle');
   // Ref keeps the tag current inside the interval/timer closure
   const selectedTagRef = useRef<SubjectTag>(DEFAULT_TAG);
@@ -486,6 +498,18 @@ export default function FocusScreen() {
     });
     return () => sub.remove();
   }, []);
+
+  // ── Completion celebration animation ────────────────────────────────────────
+  useEffect(() => {
+    if (isCompleted) {
+      completionScale.value       = withSpring(1, { damping: 12, stiffness: 120 });
+      completionGlowOpacity.value = withTiming(0.18, { duration: 900 });
+    } else {
+      // Instant reset so animation replays fresh on the next session
+      completionScale.value       = 0;
+      completionGlowOpacity.value = 0;
+    }
+  }, [isCompleted]);
 
   // ── Background session restore ───────────────────────────────────────────────
 
@@ -852,16 +876,25 @@ export default function FocusScreen() {
       {/* ── ACTIVE / COMPLETED / BROKEN: timer + tag pill ── */}
       {!isIdle && (
         <View style={styles.sessionSection}>
-          <Text
-            style={[
-              styles.timer,
-              isBroken && { color: StrivoColors.broken },
-              isCompleted && { color: StrivoColors.accent },
-              isPaused && { color: StrivoColors.textMuted },
-            ]}
-          >
-            {isCompleted ? '✓' : formatTime(timeLeft)}
-          </Text>
+          {isCompleted ? (
+            /* ── Completion: animated ✓ with glow ── */
+            <View style={styles.completionCheckmarkWrap}>
+              <Animated.View style={[styles.completionGlow, glowAnimStyle]} />
+              <Animated.View style={checkmarkAnimStyle}>
+                <Text style={[styles.timer, { color: StrivoColors.accent }]}>✓</Text>
+              </Animated.View>
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.timer,
+                isBroken && { color: StrivoColors.broken },
+                isPaused && { color: StrivoColors.textMuted },
+              ]}
+            >
+              {formatTime(timeLeft)}
+            </Text>
+          )}
 
           {/* Subtle tag pill — only during running/paused */}
           {(isRunning || isPaused) && (
@@ -871,11 +904,16 @@ export default function FocusScreen() {
             </View>
           )}
 
+          {/* Completion subtitle */}
+          {isCompleted && (
+            <Text style={styles.completionSubtext}>Item added to your globe ✨</Text>
+          )}
+
           <Text
             style={[
               styles.statusText,
               isBroken && { color: StrivoColors.broken },
-              isCompleted && { color: StrivoColors.accent },
+              isCompleted && { color: StrivoColors.accent, fontSize: 17, fontWeight: '600' },
             ]}
           >
             {statusMessages[sessionState]}
@@ -1492,6 +1530,26 @@ const styles = StyleSheet.create({
     color: StrivoColors.textMuted,
     fontWeight: '500',
     letterSpacing: 0.2,
+  },
+
+  // ── Completion celebration ───────────────────────────────────────────────────
+  completionCheckmarkWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  completionGlow: {
+    position: 'absolute',
+    width: 160,
+    height: 160,
+    borderRadius: 80,
+    backgroundColor: StrivoColors.accent,
+    // opacity animated via glowAnimStyle
+  },
+  completionSubtext: {
+    fontSize: 13,
+    color: StrivoColors.textMuted,
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
 
 });
