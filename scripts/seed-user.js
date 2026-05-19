@@ -2,19 +2,35 @@
  * One-time script to create the test account in Supabase.
  * Run: node scripts/seed-user.js
  *
- * Creates ali@strivo.app / Strivo123! with a profiles row (name: Ali Imran).
+ * Requires the following vars in .env (or exported in your shell):
+ *   EXPO_PUBLIC_SUPABASE_URL
+ *   EXPO_PUBLIC_SUPABASE_ANON_KEY
+ *   SEED_EMAIL
+ *   SEED_PASSWORD
+ *   SEED_NAME  (optional, defaults to 'Ali Imran')
+ *
  * Safe to re-run — if the user already exists it prints the error and exits.
  */
 
+require('dotenv').config();
+
 const { createClient } = require('@supabase/supabase-js');
 
-const SUPABASE_URL = 'https://vobvpbqtpmtvuabannjb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_Ni3oxpqRzugzRy-uWJxOrg_-oPXKgDA';
-
-const EMAIL    = 'ali@strivo.app';
-const PASSWORD = 'Strivo123!';
-const NAME     = 'Ali Imran';
+const SUPABASE_URL     = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const EMAIL    = process.env.SEED_EMAIL;
+const PASSWORD = process.env.SEED_PASSWORD;
+const NAME     = process.env.SEED_NAME ?? 'Ali Imran';
 const TAGS     = ['math', 'coding'];
+
+const missing = ['EXPO_PUBLIC_SUPABASE_URL', 'EXPO_PUBLIC_SUPABASE_ANON_KEY', 'SEED_EMAIL', 'SEED_PASSWORD']
+  .filter(k => !process.env[k]);
+
+if (missing.length) {
+  console.error('Missing required environment variables:', missing.join(', '));
+  console.error('Add them to .env or export them in your shell before running this script.');
+  process.exit(1);
+}
 
 async function main() {
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
