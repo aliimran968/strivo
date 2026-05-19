@@ -1088,9 +1088,9 @@ export default function FocusScreen() {
           />
           <Animated.View style={[styles.sidebarPanel, sidebarAnimStyle]}>
             <View style={[styles.sidebarTop, { paddingTop: insets.top + 24 }]}>
-              <TouchableOpacity onPress={openProfile} activeOpacity={0.7}>
+              <View>
                 <Text style={styles.sidebarName}>{userName || 'Hello'}</Text>
-              </TouchableOpacity>
+              </View>
               <View style={styles.sidebarTagRow}>
                 <Text style={styles.sidebarTagEmoji}>{(TAG_CONFIG[selectedTag] ?? TAG_CONFIG[DEFAULT_TAG]).emoji}</Text>
                 <Text style={styles.sidebarTagLabel}>{(TAG_CONFIG[selectedTag] ?? TAG_CONFIG[DEFAULT_TAG]).label}</Text>
@@ -1099,10 +1099,22 @@ export default function FocusScreen() {
 
             <View style={styles.sidebarDivider} />
 
-            <TouchableOpacity style={styles.sidebarRow} onPress={handleLogOut} activeOpacity={0.7}>
-              <Ionicons name="log-out-outline" size={18} color={StrivoColors.textMuted} />
-              <Text style={styles.sidebarRowText}>Log Out</Text>
-            </TouchableOpacity>
+            {/* Menu items */}
+            <View style={styles.sidebarMenu}>
+              <TouchableOpacity style={styles.sidebarRow} onPress={openProfile} activeOpacity={0.7}>
+                <Ionicons name="person-outline" size={18} color={StrivoColors.textMuted} />
+                <Text style={styles.sidebarRowText}>My Profile</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Logout anchored to bottom */}
+            <View style={styles.sidebarBottom}>
+              <View style={styles.sidebarDivider} />
+              <TouchableOpacity style={styles.sidebarRow} onPress={handleLogOut} activeOpacity={0.7}>
+                <Ionicons name="log-out-outline" size={18} color={StrivoColors.textMuted} />
+                <Text style={styles.sidebarRowText}>Log Out</Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </View>
       </Modal>
@@ -1594,6 +1606,12 @@ const styles = StyleSheet.create({
     backgroundColor: StrivoColors.border,
     marginHorizontal: 24,
     marginBottom: 8,
+  },
+  sidebarMenu: {
+    flex: 1,
+  },
+  sidebarBottom: {
+    paddingBottom: 24,
   },
   sidebarRow: {
     flexDirection: 'row',
