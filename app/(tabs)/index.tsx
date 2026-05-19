@@ -86,11 +86,19 @@ function formatTime(secs: number): string {
   return `${m}:${s}`;
 }
 
-function getTimeGreeting(): string {
+const GREETING_BANKS: Record<string, string[]> = {
+  morning:   ['Morning Focus.', 'Rise and build.', 'Start strong.'],
+  afternoon: ['Afternoon Focus.', 'Keep building.', 'Stay in it.'],
+  evening:   ['Evening Focus.', 'One more session.', 'Finish the day well.'],
+  night:     ['Night Focus.', 'The quiet hours.', 'Build while they sleep.'],
+};
+
+function getTimePeriod(): string {
   const h = new Date().getHours();
-  if (h < 12) return 'Good morning.';
-  if (h < 17) return 'Good afternoon.';
-  return 'Good evening.';
+  if (h >= 5 && h <= 11) return 'morning';
+  if (h >= 12 && h <= 16) return 'afternoon';
+  if (h >= 17 && h <= 21) return 'evening';
+  return 'night';
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -785,6 +793,12 @@ export default function FocusScreen() {
 
   const activeTag = TAG_CONFIG[selectedTag] ?? TAG_CONFIG[DEFAULT_TAG];
 
+  // Pick one greeting per mount — no deps so it stays stable through the session
+  const idleGreeting = useMemo(() => {
+    const bank = GREETING_BANKS[getTimePeriod()];
+    return bank[Math.floor(Math.random() * bank.length)];
+  }, []);
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -828,7 +842,7 @@ export default function FocusScreen() {
         </View>
         {/* Right: coins */}
         <View style={styles.xpStripRight}>
-          <Text style={styles.xpStripCoinEmoji}>{'\u{1FA99}'}</Text>
+          <View style={styles.xpStripCoinDot} />
           <Text style={styles.xpStripCoinCount}>{userCoins}</Text>
         </View>
       </View>
@@ -892,7 +906,7 @@ export default function FocusScreen() {
           </View>
 
           {/* Time-of-day greeting */}
-          <Text style={styles.idleGreeting}>{getTimeGreeting()}</Text>
+          <Text style={styles.idleGreeting}>{idleGreeting}</Text>
         </View>
       )}
 
@@ -1225,8 +1239,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  xpStripCoinEmoji: {
-    fontSize: 14,
+  xpStripCoinDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: StrivoColors.accent,
   },
   xpStripCoinCount: {
     fontSize: 14,
@@ -1333,7 +1350,8 @@ const styles = StyleSheet.create({
   sessionSection: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingTop: 80,
     gap: 16,
   },
   timer: {
