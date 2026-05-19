@@ -86,6 +86,13 @@ function formatTime(secs: number): string {
   return `${m}:${s}`;
 }
 
+function getTimeGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning.';
+  if (h < 17) return 'Good afternoon.';
+  return 'Good evening.';
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SIDEBAR_W = 260;
@@ -499,18 +506,6 @@ export default function FocusScreen() {
     return () => sub.remove();
   }, []);
 
-  // ── Completion celebration animation ────────────────────────────────────────
-  useEffect(() => {
-    if (isCompleted) {
-      completionScale.value       = withSpring(1, { damping: 12, stiffness: 120 });
-      completionGlowOpacity.value = withTiming(0.18, { duration: 900 });
-    } else {
-      // Instant reset so animation replays fresh on the next session
-      completionScale.value       = 0;
-      completionGlowOpacity.value = 0;
-    }
-  }, [isCompleted]);
-
   // ── Background session restore ───────────────────────────────────────────────
 
   async function restoreIfNeeded() {
@@ -762,6 +757,19 @@ export default function FocusScreen() {
   const isCompleted = sessionState === 'completed';
   const isBroken = sessionState === 'broken';
 
+  // ── Completion celebration animation ────────────────────────────────────────
+  // NOTE: must be declared after isCompleted so the dep array resolves correctly.
+  useEffect(() => {
+    if (isCompleted) {
+      completionScale.value       = withSpring(1, { damping: 12, stiffness: 120 });
+      completionGlowOpacity.value = withTiming(0.18, { duration: 900 });
+    } else {
+      // Instant reset so animation replays fresh on the next session
+      completionScale.value       = 0;
+      completionGlowOpacity.value = 0;
+    }
+  }, [isCompleted]);
+
   const xpLevel    = getXPLevel(userXP);
   const xpProgress = xpLevel.maxXP === Infinity
     ? 1
@@ -820,14 +828,26 @@ export default function FocusScreen() {
         </View>
         {/* Right: coins */}
         <View style={styles.xpStripRight}>
-          <Text style={styles.xpStripCoinEmoji}>🪙</Text>
+          <Text style={styles.xpStripCoinEmoji}>{'\u{1FA99}'}</Text>
           <Text style={styles.xpStripCoinCount}>{userCoins}</Text>
         </View>
       </View>
 
-      {/* ── IDLE: arc slider only ── */}
+      {/* ── IDLE: tag pill + arc slider + greeting ── */}
       {isIdle && (
         <View style={styles.sliderSection}>
+          {/* Active tag pill — tappable to change */}
+          <TouchableOpacity
+            style={styles.idleTagPill}
+            onPress={() => setSheetVisible(true)}
+            activeOpacity={0.75}
+          >
+            <Text style={styles.idleTagPillEmoji}>{activeTag.emoji}</Text>
+            <Text style={styles.idleTagPillLabel}>{activeTag.label}</Text>
+            <Text style={styles.idleTagPillChevron}>›</Text>
+          </TouchableOpacity>
+
+          {/* Arc slider */}
           <View style={styles.pickerContainer}>
             <GestureDetector gesture={panGesture}>
               <View style={{ width: CIRCLE_SIZE, height: CIRCLE_SIZE }}>
@@ -870,6 +890,9 @@ export default function FocusScreen() {
               <Text style={styles.circleMinLabel}>min</Text>
             </View>
           </View>
+
+          {/* Time-of-day greeting */}
+          <Text style={styles.idleGreeting}>{getTimeGreeting()}</Text>
         </View>
       )}
 
@@ -1248,6 +1271,38 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 16,
+  },
+  idleTagPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: StrivoColors.bgCard,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderWidth: 1,
+    borderColor: StrivoColors.border,
+  },
+  idleTagPillEmoji: {
+    fontSize: 16,
+  },
+  idleTagPillLabel: {
+    fontSize: 14,
+    color: StrivoColors.accent,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  idleTagPillChevron: {
+    fontSize: 16,
+    color: StrivoColors.textMuted,
+    marginLeft: 2,
+  },
+  idleGreeting: {
+    fontSize: 13,
+    color: StrivoColors.textMuted,
+    letterSpacing: 0.4,
+    textAlign: 'center',
   },
   pickerContainer: {
     position: 'relative',
