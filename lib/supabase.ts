@@ -2,8 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 
-const SUPABASE_URL = 'https://vobvpbqtpmtvuabannjb.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_Ni3oxpqRzugzRy-uWJxOrg_-oPXKgDA';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
 // SecureStore has a ~2 KB per-key limit; fall back to AsyncStorage for larger values.
 const storage = {
