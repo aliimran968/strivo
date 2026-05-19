@@ -447,6 +447,8 @@ export default function FocusScreen() {
       }
 
       if (name) setUserName(name);
+      setUserXP(profile?.xp ?? 0);
+      setUserCoins(profile?.coins ?? 0);
       scheduleDailyReminder(reminder.hour, reminder.minute, name);
       await restoreIfNeeded();
     }
@@ -596,11 +598,32 @@ export default function FocusScreen() {
     };
     await saveGlobeItem(completedItem);
     void syncSessionToSupabase(completedItem);
-
     void notifySessionComplete();
 
     const items = await getGlobeItems();
     setGlobeCount(items.length);
+
+    // ── Earn XP + coins: 1 per minute focused ──────────────────────────────
+    const minsEarned = Math.max(1, Math.floor(totalDurationRef.current / 60));
+    const existing = await getUserProfile();
+    const newXP    = (existing?.xp    ?? 0) + minsEarned;
+    const newCoins = (existing?.coins ?? 0) + minsEarned;
+    await saveUserProfile({
+      name:      existing?.name      ?? '',
+      tags:      existing?.tags      ?? [],
+      xp:        newXP,
+      coins:     newCoins,
+      joinedAt:  existing?.joinedAt,
+    });
+    setUserXP(newXP);
+    setUserCoins(newCoins);
+    // Sync to Supabase (best-effort, ignore errors)
+    supabase.auth.getUser()
+      .then(({ data: { user } }) => {
+        if (!user) return;
+        void supabase.from('profiles').update({ xp: newXP, coins: newCoins }).eq('id', user.id);
+      })
+      .catch(() => {});
   }
 
   async function handleSaveReminder() {
@@ -741,6 +764,17 @@ export default function FocusScreen() {
             <Ionicons name="menu" size={24} color={StrivoColors.accent} />
           </TouchableOpacity>
         </View>
+      </View>
+
+      {/* XP / Coins strip */}
+      <View style={styles.xpStrip}>
+        <Text style={styles.xpStripLeft}>
+          ⚡ {userXP} XP · {getXPLevel(userXP).title}
+          {getXPLevel(userXP).maxXP !== Infinity
+            ? `  (${getXPLevel(userXP).maxXP - userXP} to next)`
+            : ''}
+        </Text>
+        <Text style={styles.xpStripRight}>🪙 {userCoins}</Text>
       </View>
 
       {/* ── IDLE: arc slider only ── */}
@@ -1061,6 +1095,29 @@ const styles = StyleSheet.create({
     color: StrivoColors.textMuted,
     letterSpacing: 0.3,
     marginTop: 1,
+  },
+  xpStrip: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: StrivoColors.bgCard,
+    marginBottom: 6,
+  },
+  xpStripLeft: {
+    fontSize: 11,
+    color: StrivoColors.textMuted,
+    letterSpacing: 0.2,
+    opacity: 0.85,
+  },
+  xpStripRight: {
+    fontSize: 12,
+    color: StrivoColors.accent,
+    letterSpacing: 0.2,
+    fontWeight: '600',
   },
   headerRight: {
     flexDirection: 'row',
@@ -1541,102 +1598,4 @@ const profileStyles = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: '#C9933A',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coinDotText: {
-    fontSize: 12,
-    color: '#1A1208',
-    fontWeight: '700',
-    fontFamily: 'serif',
-  },
-  coinValue: {
-    fontSize: 18,
-    color: '#C9933A',
-    fontFamily: 'serif',
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-
-  // Stats 2x2 grid
-  statsGrid: {
-    marginHorizontal: 16,
-    marginVertical: 14,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    backgroundColor: '#2A1A0A',
-    borderRadius: 12,
-    overflow: 'hidden',
-    gap: 1,
-  },
-  statCell: {
-    width: '49.7%' as unknown as number,
-    backgroundColor: '#1E1208',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  statLabel: {
-    fontSize: 10,
-    color: '#6B5030',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  statValue: {
-    fontSize: 18,
-    color: '#F0E6D3',
-    fontFamily: 'serif',
-    fontWeight: '500',
-    letterSpacing: 0.3,
-  },
-
-  // Edit name
-  editNameBlock: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    alignItems: 'center',
-  },
-  editPrompt: {
-    paddingVertical: 6,
-  },
-  editPromptText: {
-    fontSize: 13,
-    color: '#6B5030',
-    letterSpacing: 0.4,
-  },
-  editInput: {
-    width: '100%',
-    fontSize: 16,
-    color: '#F0E6D3',
-    backgroundColor: '#2E1C0A',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#C9933A',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  editBtnRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 18,
-    marginTop: 14,
-  },
-  editCancelText: {
-    fontSize: 13,
-    color: '#9A8A72',
-    letterSpacing: 0.3,
-  },
-  editSaveBtn: {
-    backgroundColor: '#C9933A',
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    borderRadius: 10,
-  },
-  editSaveText: {
-    fontSize: 13,
-    color: '#1A1208',
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-});
+ 
