@@ -55,6 +55,9 @@ const THUMB_R = CIRCLE_STROKE / 2 + 5;
 const MIN_ANGLE = (1 / MAX_MINUTES) * 2 * Math.PI;
 const MAX_ANGLE = 2 * Math.PI;
 
+const DEEP_FOCUS_COLOR = '#C44B3A';
+const DEEP_FOCUS_MIN_MINUTES = 45;
+
 // ─── Animated SVG component ───────────────────────────────────────────────────
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -362,6 +365,8 @@ export default function FocusScreen() {
   const [reminderHour, setReminderHour] = useState(9);
   const [reminderMinute, setReminderMinute] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [deepFocus, setDeepFocus] = useState(false);
+  const [modePickerVisible, setModePickerVisible] = useState(false);
 
   const [profileOpen, setProfileOpen]         = useState(false);
   const [profileSessions, setProfileSessions] = useState<GlobeItem[]>([]);
@@ -397,6 +402,11 @@ export default function FocusScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const totalDurationRef = useRef(DEFAULT_MINUTES * 60);
   const timeLeftRef = useRef(DEFAULT_MINUTES * 60);
+  // Mirrors deepFocus state so timer/AppState closures see the current value
+  const deepFocusRef = useRef(false);
+  useEffect(() => {
+    deepFocusRef.current = deepFocus;
+  }, [deepFocus]);
 
   // Slider shared values
   const minutesShared = useSharedValue(DEFAULT_MINUTES);
@@ -413,7 +423,11 @@ export default function FocusScreen() {
       const angle = beta < MIN_ANGLE ? MAX_ANGLE : beta;
       const clamped = Math.max(MIN_ANGLE, Math.min(MAX_ANGLE, angle));
       continuousAngle.value = clamped;
-      const mins = snapMins((clamped / MAX_ANGLE) * MAX_MINUTES);
+      let mins = snapMins((clamped / MAX_ANGLE) * MAX_MINUTES);
+      // Deep focus: 1 stays valid (testing), middle range snaps up to 45
+      if (deepFocus && mins > 1 && mins < DEEP_FOCUS_MIN_MINUTES) {
+        mins = DEEP_FOCUS_MIN_MINUTES;
+      }
       minutesShared.value = mins;
       runOnJS(setDisplayMinutes)(mins);
     })
@@ -426,7 +440,10 @@ export default function FocusScreen() {
       prevRawAngle.value = newBeta;
       const clamped = Math.max(MIN_ANGLE, Math.min(MAX_ANGLE, continuousAngle.value + delta));
       continuousAngle.value = clamped;
-      const newMins = snapMins((clamped / MAX_ANGLE) * MAX_MINUTES);
+      let newMins = snapMins((clamped / MAX_ANGLE) * MAX_MINUTES);
+      if (deepFocus && newMins > 1 && newMins < DEEP_FOCUS_MIN_MINUTES) {
+        newMins = DEEP_FOCUS_MIN_MINUTES;
+      }
       if (newMins !== minutesShared.value) {
         minutesShared.value = newMins;
         runOnJS(setDisplayMinutes)(newMins);
@@ -499,6 +516,12 @@ export default function FocusScreen() {
     const sub = AppState.addEventListener('change', (nextState: AppStateStatus) => {
       const current = sessionStateRef.current;
       if (nextState === 'background' && (current === 'running' || current === 'paused')) {
+        // Deep focus: backgrounding kills the running session, no restore
+        if (deepFocusRef.current && current === 'running') {
+          clearTimer();
+          handleBroken();
+          return;
+        }
         void saveBackgroundSession({
           timeRemaining: timeLeftRef.current,
           selectedTag: selectedTagRef.current,
@@ -585,8 +608,38 @@ export default function FocusScreen() {
   // ── Session handlers ─────────────────────────────────────────────────────────
 
   function handleStartPress() {
+    if (deepFocus) {
+      Alert.alert(
+        'Deep Focus',
+        "Switching apps will end your session and you'll lose your progress.",
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: "Let's go",
+            onPress: () => {
+              setPendingTag(selectedTag);
+              setSheetVisible(true);
+            },
+          },
+        ],
+      );
+      return;
+    }
     setPendingTag(selectedTag);
     setSheetVisible(true);
+  }
+
+  function selectMode(mode: 'focus' | 'deep') {
+    const isDeep = mode === 'deep';
+    setDeepFocus(isDeep);
+    // Bump dial to 45 if currently in the middle range (>1 and <45).
+    // Leave 1 alone so testing with a short deep-focus session is possible.
+    if (isDeep && displayMinutes > 1 && displayMinutes < DEEP_FOCUS_MIN_MINUTES) {
+      setDisplayMinutes(DEEP_FOCUS_MIN_MINUTES);
+      minutesShared.value = DEEP_FOCUS_MIN_MINUTES;
+      continuousAngle.value = (DEEP_FOCUS_MIN_MINUTES / MAX_MINUTES) * MAX_ANGLE;
+    }
+    setModePickerVisible(false);
   }
 
   function handleBeginSession() {
@@ -643,8 +696,9 @@ export default function FocusScreen() {
     const items = await getGlobeItems();
     setGlobeCount(items.length);
 
-    // ── Earn XP + coins: 1 per minute focused ──────────────────────────────
-    const minsEarned = Math.max(1, Math.floor(totalDurationRef.current / 60));
+    // ── Earn XP + coins: 1 per minute focused, doubled in deep focus ───────
+    const baseMins = Math.max(1, Math.floor(totalDurationRef.current / 60));
+    const minsEarned = deepFocusRef.current ? baseMins * 2 : baseMins;
     const existing = await getUserProfile();
     const newXP    = (existing?.xp    ?? 0) + minsEarned;
     const newCoins = (existing?.coins ?? 0) + minsEarned;
@@ -830,8 +884,22 @@ export default function FocusScreen() {
         </View>
       </View>
 
+      {/* Mode switcher — only visible when idle */}
+      {isIdle && (
+        <TouchableOpacity
+          style={[styles.modeSwitcher, deepFocus && { borderColor: DEEP_FOCUS_COLOR }]}
+          onPress={() => setModePickerVisible(true)}
+          activeOpacity={0.75}
+        >
+          <Text style={[styles.modeSwitcherText, { color: deepFocus ? DEEP_FOCUS_COLOR : StrivoColors.accent }]}>
+            {deepFocus ? '🔴 Deep Focus' : '⏱ Focus'}
+          </Text>
+          <Text style={styles.idleTagPillChevron}>›</Text>
+        </TouchableOpacity>
+      )}
+
       {/* XP / Coins strip */}
-      <View style={styles.xpStrip}>
+      <View style={[styles.xpStrip, deepFocus && { borderColor: DEEP_FOCUS_COLOR + '55' }]}>
         {/* Left: icon · level label · mini progress bar */}
         <View style={styles.xpStripLeft}>
           <Text style={styles.xpStripIcon}>{LEVEL_ICONS[xpLevel.title] ?? '⭐'}</Text>
@@ -880,7 +948,7 @@ export default function FocusScreen() {
                       cx={CIRCLE_CENTER}
                       cy={CIRCLE_CENTER}
                       r={CIRCLE_RADIUS}
-                      stroke={StrivoColors.accent}
+                      stroke={deepFocus ? DEEP_FOCUS_COLOR : StrivoColors.accent}
                       strokeWidth={CIRCLE_STROKE}
                       fill="none"
                       strokeDasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
@@ -890,7 +958,7 @@ export default function FocusScreen() {
                   </G>
                   <AnimatedCircle
                     r={THUMB_R}
-                    fill={StrivoColors.accent}
+                    fill={deepFocus ? DEEP_FOCUS_COLOR : StrivoColors.accent}
                     stroke={StrivoColors.bg}
                     strokeWidth={3}
                     animatedProps={thumbProps}
@@ -900,7 +968,7 @@ export default function FocusScreen() {
             </GestureDetector>
 
             <View style={styles.circleCenter} pointerEvents="none">
-              <Text style={styles.circleMins}>{displayMinutes}</Text>
+              <Text style={[styles.circleMins, deepFocus && { color: DEEP_FOCUS_COLOR }]}>{displayMinutes}</Text>
               <Text style={styles.circleMinLabel}>min</Text>
             </View>
           </View>
@@ -927,6 +995,7 @@ export default function FocusScreen() {
                 styles.timer,
                 isBroken && { color: StrivoColors.broken },
                 isPaused && { color: StrivoColors.textMuted },
+                deepFocus && isRunning && { color: DEEP_FOCUS_COLOR },
               ]}
             >
               {formatTime(timeLeft)}
@@ -1067,6 +1136,54 @@ export default function FocusScreen() {
               activeOpacity={0.85}
             >
               <Text style={styles.primaryBtnText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Mode picker ── */}
+      <Modal
+        visible={modePickerVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModePickerVisible(false)}
+      >
+        <View style={styles.sheetOverlay}>
+          <TouchableOpacity
+            style={styles.sheetDismissArea}
+            activeOpacity={1}
+            onPress={() => setModePickerVisible(false)}
+          />
+          <View style={styles.sheetCard}>
+            <View style={styles.sheetHandle} />
+            <Text style={styles.sheetTitle}>Choose mode</Text>
+
+            <TouchableOpacity
+              style={styles.modePickerOption}
+              onPress={() => selectMode('focus')}
+              activeOpacity={0.75}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: StrivoColors.accent }}>⏱ Focus</Text>
+                <Text style={{ fontSize: 12, color: StrivoColors.textMuted, marginTop: 3 }}>
+                  Flexible sessions, pause anytime
+                </Text>
+              </View>
+              {!deepFocus && <Ionicons name="checkmark" size={20} color={StrivoColors.accent} />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.modePickerOption}
+              onPress={() => selectMode('deep')}
+              activeOpacity={0.75}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: DEEP_FOCUS_COLOR }}>🔴 Deep Focus</Text>
+                <Text style={{ fontSize: 12, color: StrivoColors.textMuted, marginTop: 3 }}>
+                  45 min minimum. Switching apps breaks your session.
+                </Text>
+              </View>
+              {deepFocus && <Ionicons name="checkmark" size={20} color={DEEP_FOCUS_COLOR} />}
             </TouchableOpacity>
           </View>
         </View>
@@ -1625,6 +1742,34 @@ const styles = StyleSheet.create({
     color: StrivoColors.textMuted,
     fontWeight: '500',
     letterSpacing: 0.2,
+  },
+
+  // ── Mode switcher ───────────────────────────────────────────────────────────
+  modeSwitcher: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: StrivoColors.border,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    marginBottom: 8,
+    gap: 6,
+    backgroundColor: StrivoColors.bgCard,
+  },
+  modeSwitcherText: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  modePickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    backgroundColor: StrivoColors.bgCard,
   },
 
   // ── Completion celebration ───────────────────────────────────────────────────
