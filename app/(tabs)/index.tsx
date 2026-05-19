@@ -941,20 +941,24 @@ export default function FocusScreen() {
             </View>
           )}
 
-          {/* Completion subtitle */}
-          {isCompleted && (
-            <Text style={styles.completionSubtext}>Item added to your globe ✨</Text>
+          {/* Completion texts: flex:1 so they float centred in the space below the ✓ */}
+          {isCompleted ? (
+            <View style={styles.completionTextsWrap}>
+              <Text style={styles.completionSubtext}>Item added to your globe ✨</Text>
+              <Text style={[styles.statusText, { color: StrivoColors.accent, fontSize: 17, fontWeight: '600' }]}>
+                {statusMessages[sessionState]}
+              </Text>
+            </View>
+          ) : (
+            <Text
+              style={[
+                styles.statusText,
+                isBroken && { color: StrivoColors.broken },
+              ]}
+            >
+              {statusMessages[sessionState]}
+            </Text>
           )}
-
-          <Text
-            style={[
-              styles.statusText,
-              isBroken && { color: StrivoColors.broken },
-              isCompleted && { color: StrivoColors.accent, fontSize: 17, fontWeight: '600' },
-            ]}
-          >
-            {statusMessages[sessionState]}
-          </Text>
         </View>
       )}
 
@@ -1617,6 +1621,12 @@ const styles = StyleSheet.create({
     borderRadius: 80,
     backgroundColor: StrivoColors.accent,
     // opacity animated via glowAnimStyle
+  },
+  completionTextsWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
   },
   completionSubtext: {
     fontSize: 13,
