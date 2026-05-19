@@ -370,7 +370,7 @@ export default function FocusScreen() {
   const [joinedAt, setJoinedAt]               = useState<string | null>(null);
 
   const insets = useSafeAreaInsets();
-  const sidebarX = useSharedValue(SIDEBAR_W);
+  const sidebarX = useSharedValue(-SIDEBAR_W);
   const backdropOpacity = useSharedValue(0);
 
   const sidebarAnimStyle = useAnimatedStyle(() => ({
@@ -679,7 +679,7 @@ export default function FocusScreen() {
   }
 
   function closeSidebar() {
-    sidebarX.value = withTiming(SIDEBAR_W, { duration: 220 });
+    sidebarX.value = withTiming(-SIDEBAR_W, { duration: 220 });
     backdropOpacity.value = withTiming(0, { duration: 220 });
     setTimeout(() => setSidebarOpen(false), 225);
   }
@@ -805,6 +805,9 @@ export default function FocusScreen() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        <TouchableOpacity style={styles.iconBtn} onPress={openSidebar} activeOpacity={0.7}>
+          <Ionicons name="menu" size={24} color={StrivoColors.accent} />
+        </TouchableOpacity>
         <View>
           <Text style={styles.wordmark}>STRIVO</Text>
           {userName ? <Text style={styles.greeting}>Ready, {userName}.</Text> : null}
@@ -823,9 +826,6 @@ export default function FocusScreen() {
                 <Text style={styles.badgeText}>{globeCount}</Text>
               </View>
             )}
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={openSidebar} activeOpacity={0.7}>
-            <Ionicons name="menu" size={24} color={StrivoColors.accent} />
           </TouchableOpacity>
         </View>
       </View>
@@ -1556,12 +1556,12 @@ const styles = StyleSheet.create({
   sidebarPanel: {
     position: 'absolute',
     top: 0,
-    right: 0,
+    left: 0,
     bottom: 0,
     width: SIDEBAR_W,
     backgroundColor: '#100B04',
-    borderLeftWidth: 1,
-    borderLeftColor: StrivoColors.border,
+    borderRightWidth: 1,
+    borderRightColor: StrivoColors.border,
   },
   sidebarTop: {
     paddingHorizontal: 24,
